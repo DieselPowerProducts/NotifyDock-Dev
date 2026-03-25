@@ -3,6 +3,7 @@ import {
   AdminBlock,
   BlockStack,
   Button,
+  Section,
   Text,
   reactExtension,
   useApi,
@@ -165,12 +166,13 @@ function EmailHistoryList({history}) {
   return (
     <BlockStack gap="base">
       {history.map((entry) => (
-        <BlockStack key={entry.id} gap="base">
-          <Text>{`${labelEmailType(entry.emailType)} | ${formatHistoryTimestamp(entry.sentAt)}`}</Text>
-          <Text>{`To: ${entry.customerEmail}`}</Text>
-          {entry.fromAddress ? <Text>{`From: ${entry.fromAddress}`}</Text> : null}
-          <Text>{`Subject: ${entry.subject}`}</Text>
-        </BlockStack>
+        <Section
+          key={entry.id}
+          accessibilityLabel={`${labelEmailType(entry.emailType)} sent to ${entry.customerEmail}`}
+          padding="base"
+        >
+          <Text>{buildHistorySummary(entry)}</Text>
+        </Section>
       ))}
     </BlockStack>
   );
@@ -193,6 +195,10 @@ function formatHistoryTimestamp(sentAt) {
   } catch (_error) {
     return sentAt;
   }
+}
+
+function buildHistorySummary(entry) {
+  return `${labelEmailType(entry.emailType)} Sent | ${formatHistoryTimestamp(entry.sentAt)} - To: ${entry.customerEmail}`;
 }
 
 function getOrderIdFromAdminUrl(launchUrl) {

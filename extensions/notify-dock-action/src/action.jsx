@@ -5,13 +5,16 @@ import {
   Box,
   Button,
   InlineStack,
+  Link,
   ProgressIndicator,
+  Section,
   Select,
   Text,
   TextArea,
   TextField,
   reactExtension,
 } from "@shopify/ui-extensions-react/admin";
+import {useState} from "react";
 import {
   canSendComposer,
   EMAIL_TYPES,
@@ -173,14 +176,41 @@ function EmailHistoryList({history}) {
   return (
     <BlockStack gap="base">
       {history.map((entry) => (
-        <BlockStack key={entry.id} gap="base">
-          <Text>{`${labelEmailType(entry.emailType)} | ${formatHistoryTimestamp(entry.sentAt)}`}</Text>
-          <Text>{`To: ${entry.customerEmail}`}</Text>
-          {entry.fromAddress ? <Text>{`From: ${entry.fromAddress}`}</Text> : null}
-          <Text>{`Subject: ${entry.subject}`}</Text>
-        </BlockStack>
+        <EmailHistoryItem key={entry.id} entry={entry} />
       ))}
     </BlockStack>
+  );
+}
+
+function EmailHistoryItem({entry}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Section
+      accessibilityLabel={`${labelEmailType(entry.emailType)} sent to ${entry.customerEmail}`}
+      padding="base"
+    >
+      <BlockStack gap="small">
+        <Text>{buildHistorySummary(entry)}</Text>
+
+        <InlineStack inlineAlignment="start">
+          <Link
+            onPress={() => {
+              setExpanded(!expanded);
+            }}
+          >
+            {expanded ? "Hide email" : "View email"}
+          </Link>
+        </InlineStack>
+
+        {expanded ? (
+          <BlockStack gap="small">
+            <Text fontWeight="bold">{entry.subject}</Text>
+            <Text>{formatEmailPreview(entry.message)}</Text>
+          </BlockStack>
+        ) : null}
+      </BlockStack>
+    </Section>
   );
 }
 
@@ -201,4 +231,20 @@ function formatHistoryTimestamp(sentAt) {
   } catch (_error) {
     return sentAt;
   }
+}
+
+function buildHistorySummary(entry) {
+  return `${labelEmailType(entry.emailType)} Sent | ${formatHistoryTimestamp(entry.sentAt)} - To: ${entry.customerEmail}`;
+}
+
+function formatEmailPreview(message) {
+  return `${message || ""}`
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/center>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .trim();
 }
