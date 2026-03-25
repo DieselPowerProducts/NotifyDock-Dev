@@ -25,8 +25,10 @@ export function useComposerState(target) {
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState(null);
+  const [sending, setSending] = useState(false);
   const [shopName, setShopName] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [sku, setSku] = useState("");
   const [emailType, setEmailType] = useState("backorder_notice");
@@ -48,6 +50,7 @@ export function useComposerState(target) {
     setStatus(null);
     setShopName("");
     setOrderNumber("");
+    setFirstName("");
     setCustomerEmail("");
     setSku("");
     setEmailType("backorder_notice");
@@ -135,8 +138,14 @@ export function useComposerState(target) {
           order.customer?.email,
           order.email,
         ].find(Boolean) || "";
+        const firstName = [
+          order.customer?.firstName,
+          order.shippingAddress?.firstName,
+          order.billingAddress?.firstName,
+        ].find(Boolean) || "";
 
         setOrderNumber(order.name || "");
+        setFirstName(firstName);
         setCustomerEmail(customerEmail);
         setSku(skus.join(", "));
         setLoadingOrder(false);
@@ -199,11 +208,50 @@ export function useComposerState(target) {
   }
 
   async function handleSend() {
-    setStatus({
-      tone: "info",
-      message:
-        "UI preview is installed. Email sending stays disabled until the app backend is connected to Klaviyo.",
-    });
+    setSending(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/backorder-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer_email: customerEmail,
+          email_type: emailType,
+          first_name: firstName,
+          from_address: fromAddress,
+          message,
+          order_number: orderNumber,
+          shop_name: shopName,
+          sku,
+          subject,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Notify Dock could not send this email.");
+      }
+
+      setStatus({
+        tone: "success",
+        message:
+          payload.message ||
+          "Klaviyo accepted the Notify Dock event for delivery.",
+      });
+    } catch (error) {
+      setStatus({
+        tone: "critical",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Notify Dock could not send this email.",
+      });
+    } finally {
+      setSending(false);
+    }
   }
 
   return {
@@ -216,6 +264,7 @@ export function useComposerState(target) {
     loadingOrder,
     message,
     resetTemplate,
+    sending,
     setEmailType: (value) => {
       setEmailType(value);
       setSubjectDirty(false);

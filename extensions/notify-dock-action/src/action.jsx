@@ -34,6 +34,7 @@ function ActionComposer() {
     loadingOrder,
     message,
     resetTemplate,
+    sending,
     setEmailType,
     setFromAddress,
     setMessage,
@@ -50,11 +51,11 @@ function ActionComposer() {
       title="Notify Dock"
       primaryAction={
         <Button
-          disabled={!canSend}
+          disabled={!canSend || loadingOrder || sending}
           onPress={handleSend}
           variant="primary"
         >
-          Send email
+          {sending ? "Sending..." : "Send email"}
         </Button>
       }
       secondaryAction={<Button onPress={api.close}>Close</Button>}
