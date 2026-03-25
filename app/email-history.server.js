@@ -171,6 +171,10 @@ function buildFallbackSubject({emailType, orderNumber}) {
     return `Pick Up on Location Order ${orderNumber}`.trim();
   }
 
+  if (emailType === "will_call_in_progress") {
+    return "Hang Tight - Your Will Call Order Is In Progress";
+  }
+
   if (emailType === "shipping_delay") {
     return `Shipping delay for order ${orderNumber}`.trim();
   }

@@ -54,7 +54,7 @@ function ActionComposer() {
     subject,
   } = useComposerState(TARGET);
 
-  const canSend = canSendComposer({customerEmail, message, subject});
+  const canSend = canSendComposer({customerEmail, emailType, message, subject});
   const selectedHistoryEntry =
     history.find((entry) => entry.id === selectedHistoryId) || null;
 
@@ -272,6 +272,10 @@ function EmailPreviewContent({entry}) {
 }
 
 function labelEmailType(emailType) {
+  if (emailType === "will_call_in_progress") {
+    return "Will Call - In Progress";
+  }
+
   if (emailType === "will_call_ready") {
     return "Will Call Ready";
   }

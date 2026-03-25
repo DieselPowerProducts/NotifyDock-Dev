@@ -201,6 +201,10 @@ function EmailHistoryList({history, navigation, orderId}) {
 }
 
 function labelEmailType(emailType) {
+  if (emailType === "will_call_in_progress") {
+    return "Will Call - In Progress";
+  }
+
   if (emailType === "will_call_ready") {
     return "Will Call Ready";
   }

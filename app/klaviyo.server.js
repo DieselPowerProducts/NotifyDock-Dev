@@ -8,6 +8,9 @@ export const METRIC_NAMES = {
   shipping_delay:
     process.env.KLAVIYO_SHIPPING_DELAY_METRIC_NAME ||
     "Notify Dock Shipping Delay Email Requested",
+  will_call_in_progress:
+    process.env.KLAVIYO_WILL_CALL_IN_PROGRESS_METRIC_NAME ||
+    "Notify Dock Will Call In Progress Email Requested",
   will_call_ready:
     process.env.KLAVIYO_WILL_CALL_METRIC_NAME ||
     "Notify Dock Will Call Email Requested",

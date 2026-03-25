@@ -6,6 +6,7 @@ import {sendNotifyDockEvent} from "../klaviyo.server";
 const VALID_EMAIL_TYPES = new Set([
   "backorder_notice",
   "shipping_delay",
+  "will_call_in_progress",
   "will_call_ready",
 ]);
 
@@ -46,12 +47,18 @@ export async function action({request}) {
     return cors(json({error: "Invalid email type."}, {status: 400}));
   }
 
-  if (!customerEmail || !orderId || !orderNumber || !message || !subject) {
+  if (
+    !customerEmail ||
+    !orderId ||
+    !orderNumber ||
+    !subject ||
+    !isMessageAllowed({emailType, message})
+  ) {
     return cors(
       json(
         {
           error:
-            "Order, customer email, order number, subject, and message are required.",
+            "Order, customer email, order number, and subject are required. Message is required for this email type.",
         },
         {status: 400},
       ),
@@ -129,9 +136,21 @@ function buildSubject({emailType, orderNumber}) {
     return `Pick Up on Location Order ${orderNumber}`.trim();
   }
 
+  if (emailType === "will_call_in_progress") {
+    return "Hang Tight - Your Will Call Order Is In Progress";
+  }
+
   if (emailType === "shipping_delay") {
     return `Shipping delay for order ${orderNumber}`.trim();
   }
 
   return `Backorder status for order ${orderNumber}`.trim();
+}
+
+function isMessageAllowed({emailType, message}) {
+  if (emailType === "will_call_ready") {
+    return true;
+  }
+
+  return Boolean(message);
 }

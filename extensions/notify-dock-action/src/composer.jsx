@@ -4,7 +4,8 @@ import {useApi} from "@shopify/ui-extensions-react/admin";
 export const EMAIL_TYPES = [
   {label: "Backorder Notice", value: "backorder_notice"},
   {label: "Shipping Delay", value: "shipping_delay"},
-  {label: "Will Call Ready", value: "will_call_ready"},
+  {label: "Will Call - Ready", value: "will_call_ready"},
+  {label: "Will Call - In Progress", value: "will_call_in_progress"},
 ];
 
 export const FROM_OPTIONS = [
@@ -374,13 +375,21 @@ export function useComposerState(target) {
   };
 }
 
-export function canSendComposer({customerEmail, message, subject}) {
-  return Boolean(customerEmail && message && subject);
+export function canSendComposer({customerEmail, emailType, message, subject}) {
+  return Boolean(
+    customerEmail &&
+      subject &&
+      (emailType === "will_call_ready" || message),
+  );
 }
 
 function buildSubject({emailType, orderNumber, shopName}) {
   if (emailType === "will_call_ready") {
     return `Pick Up on Location Order ${orderNumber || "#"}`.trim();
+  }
+
+  if (emailType === "will_call_in_progress") {
+    return "Hang Tight - Your Will Call Order Is In Progress";
   }
 
   if (emailType === "shipping_delay") {
@@ -392,6 +401,10 @@ function buildSubject({emailType, orderNumber, shopName}) {
 
 function buildMessage({emailType, orderNumber, sku}) {
   if (emailType === "will_call_ready") {
+    return "";
+  }
+
+  if (emailType === "will_call_in_progress") {
     return [
       `Hello,`,
       `Your order has been processed. We will contact you once your complete order is here and ready for pick up at our Will Call.`,
