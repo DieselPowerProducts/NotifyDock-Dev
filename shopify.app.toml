@@ -2,7 +2,7 @@
 
 client_id = "c920a666bf14b16b8513c20330af7e3d"
 name = "NotifyDock"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://notify-dock.vercel.app"
 embedded = true
 
 [build]
@@ -19,4 +19,4 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://notify-dock.vercel.app/auth/callback" ]
