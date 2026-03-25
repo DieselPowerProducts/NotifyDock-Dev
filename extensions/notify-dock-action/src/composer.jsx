@@ -116,6 +116,7 @@ export function useComposerState(target) {
               lineItems(first: 50) {
                 edges {
                   node {
+                    currentQuantity
                     title
                     sku
                   }
@@ -148,6 +149,7 @@ export function useComposerState(target) {
         const skus = Array.from(
           new Set(
             order.lineItems.edges
+              .filter(({node}) => Number(node.currentQuantity || 0) > 0)
               .map(({node}) => node.sku || node.title)
               .filter(Boolean),
           ),
