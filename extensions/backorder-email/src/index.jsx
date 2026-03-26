@@ -163,16 +163,45 @@ function BlockLauncher() {
 
 function EmailHistoryList({history}) {
   return (
-    <BlockStack gap="small">
+    <BlockStack gap="none">
       {history.map((entry, index) => (
-        <BlockStack key={entry.id} gap="small">
-          <InlineStack inlineAlignment="start">
-            <Badge>{buildHistorySummary(entry)}</Badge>
-          </InlineStack>
-          {index < history.length - 1 ? <CenteredSeparator /> : null}
-        </BlockStack>
+        <HistoryTimelineItem
+          key={entry.id}
+          entry={entry}
+          isFirst={index === 0}
+          isLast={index === history.length - 1}
+        />
       ))}
     </BlockStack>
+  );
+}
+
+function HistoryTimelineItem({entry, isFirst, isLast}) {
+  return (
+    <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
+      <HistoryTimelineRail isFirst={isFirst} isLast={isLast} />
+
+      <Box paddingBlockEnd="base">
+        <InlineStack inlineAlignment="start">
+          <Badge>{buildHistorySummary(entry)}</Badge>
+        </InlineStack>
+      </Box>
+    </InlineStack>
+  );
+}
+
+function HistoryTimelineRail({isFirst, isLast}) {
+  return (
+    <Box inlineSize={20} minInlineSize={20} paddingBlockStart="small">
+      <BlockStack gap="none" inlineAlignment="center">
+        <Text>{isFirst ? " " : "│"}</Text>
+        <Text>{isFirst ? " " : "│"}</Text>
+        <Text>●</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+      </BlockStack>
+    </Box>
   );
 }
 
@@ -205,14 +234,6 @@ function formatHistoryTimestamp(sentAt) {
 
 function buildHistorySummary(entry) {
   return `${labelEmailType(entry.emailType)} Sent | ${formatHistoryTimestamp(entry.sentAt)} - To: ${entry.customerEmail}`;
-}
-
-function CenteredSeparator() {
-  return (
-    <InlineStack inlineAlignment="center">
-      <Text>-</Text>
-    </InlineStack>
-  );
 }
 
 function getOrderIdFromAdminUrl(launchUrl) {

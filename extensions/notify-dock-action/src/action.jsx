@@ -304,28 +304,51 @@ function ActionComposer() {
 
 function EmailHistoryList({history}) {
   return (
-    <BlockStack gap="small">
+    <BlockStack gap="none">
       {history.map((entry, index) => (
-        <BlockStack key={entry.id} gap="small">
-          <EmailHistoryItem entry={entry} />
-          {index < history.length - 1 ? <CenteredSeparator /> : null}
-        </BlockStack>
+        <HistoryTimelineItem
+          key={entry.id}
+          entry={entry}
+          isFirst={index === 0}
+          isLast={index === history.length - 1}
+        />
       ))}
     </BlockStack>
   );
 }
 
-function EmailHistoryItem({entry}) {
+function HistoryTimelineItem({entry, isFirst, isLast}) {
   return (
-    <BlockStack gap="small">
-      <InlineStack inlineAlignment="start">
-        <Badge>{buildHistorySummary(entry)}</Badge>
-      </InlineStack>
+    <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
+      <HistoryTimelineRail isFirst={isFirst} isLast={isLast} />
 
-      <InlineStack inlineAlignment="start">
-        <HistoryPreviewButton entry={entry} />
-      </InlineStack>
-    </BlockStack>
+      <Box paddingBlockEnd="base">
+        <BlockStack gap="small">
+          <InlineStack inlineAlignment="start">
+            <Badge>{buildHistorySummary(entry)}</Badge>
+          </InlineStack>
+
+          <InlineStack inlineAlignment="start">
+            <HistoryPreviewButton entry={entry} />
+          </InlineStack>
+        </BlockStack>
+      </Box>
+    </InlineStack>
+  );
+}
+
+function HistoryTimelineRail({isFirst, isLast}) {
+  return (
+    <Box inlineSize={20} minInlineSize={20} paddingBlockStart="small">
+      <BlockStack gap="none" inlineAlignment="center">
+        <Text>{isFirst ? " " : "│"}</Text>
+        <Text>{isFirst ? " " : "│"}</Text>
+        <Text>●</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+        <Text>{isLast ? " " : "│"}</Text>
+      </BlockStack>
+    </Box>
   );
 }
 
@@ -548,14 +571,6 @@ function splitSkuInput(value) {
 
 function showsShipDate(emailType) {
   return emailType === "backorder_notice" || emailType === "shipping_delay";
-}
-
-function CenteredSeparator() {
-  return (
-    <InlineStack inlineAlignment="center">
-      <Text>-</Text>
-    </InlineStack>
-  );
 }
 
 function formatEmailPreview(message) {
