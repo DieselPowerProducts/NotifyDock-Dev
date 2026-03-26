@@ -1,8 +1,7 @@
 import {json} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
-import {renderNotifyDockTemplate} from "../klaviyo.server";
+import {buildNotifyDockPreview} from "../notify-dock-preview.server";
 import {
-  sanitizeRenderedEmailHtml,
   verifyNotifyDockPreviewToken,
 } from "../notify-dock-preview-token.server";
 
@@ -23,18 +22,20 @@ export async function loader({request}) {
             ? error.message
             : "The Notify Dock preview link is invalid.",
         templateId: "",
+        title: "Rendered Klaviyo Preview",
       },
       {status: error?.status || 400},
     );
   }
 
   try {
-    const rendered = await renderNotifyDockTemplate(payload);
+    const rendered = await buildNotifyDockPreview(payload);
 
     return json({
-      html: sanitizeRenderedEmailHtml(rendered.html),
+      html: rendered.html,
       notice: "",
       templateId: rendered.templateId,
+      title: rendered.title,
     });
   } catch (error) {
     return json(
@@ -45,6 +46,7 @@ export async function loader({request}) {
             ? error.message
             : "Notify Dock could not render the Klaviyo preview.",
         templateId: "",
+        title: "Rendered Klaviyo Preview",
       },
       {status: error?.status || 500},
     );
@@ -52,13 +54,13 @@ export async function loader({request}) {
 }
 
 export default function NotifyDockPreviewPage() {
-  const {html, notice, templateId} = useLoaderData();
+  const {html, notice, templateId, title} = useLoaderData();
 
   return (
     <main style={styles.page}>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Rendered Klaviyo Preview</h1>
+          <h1 style={styles.title}>{title || "Rendered Klaviyo Preview"}</h1>
           {templateId ? <p style={styles.meta}>Template ID: {templateId}</p> : null}
         </div>
       </div>

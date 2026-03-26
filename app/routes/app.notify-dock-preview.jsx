@@ -2,10 +2,9 @@ import {json} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
 import {TitleBar} from "@shopify/app-bridge-react";
 import {Banner, BlockStack, Card, Layout, Page, Text} from "@shopify/polaris";
-import {renderNotifyDockTemplate} from "../klaviyo.server";
+import {buildNotifyDockPreview} from "../notify-dock-preview.server";
 import {
   normalizePreviewPayload,
-  sanitizeRenderedEmailHtml,
   verifyNotifyDockPreviewToken,
 } from "../notify-dock-preview-token.server";
 import {authenticate} from "../shopify.server";
@@ -28,24 +27,30 @@ export async function loader({request}) {
       });
 
   if (!payload.emailType) {
-    return json(
-      {
-        html: "",
-        notice: "emailType is required.",
-        templateId: "",
-      },
-      {status: 400},
-    );
+    if (!payload.historyId) {
+      return json(
+        {
+          html: "",
+          notice: "emailType is required.",
+          templateId: "",
+          title: "Rendered Klaviyo Preview",
+        },
+        {status: 400},
+      );
+    }
   }
 
   try {
-    const rendered = await renderNotifyDockTemplate(payload);
+    const rendered = await buildNotifyDockPreview(payload);
 
-    return json({
-      html: sanitizeRenderedEmailHtml(rendered.html),
-      notice: "",
-      templateId: rendered.templateId,
-    });
+    return json(
+      {
+        html: rendered.html,
+        notice: "",
+        templateId: rendered.templateId,
+        title: rendered.title,
+      },
+    );
   } catch (error) {
     return json(
       {
@@ -55,6 +60,7 @@ export async function loader({request}) {
             ? error.message
             : "Notify Dock could not render the Klaviyo preview.",
         templateId: "",
+        title: "Rendered Klaviyo Preview",
       },
       {status: error?.status || 500},
     );
@@ -62,11 +68,11 @@ export async function loader({request}) {
 }
 
 export default function NotifyDockPreviewPage() {
-  const {html, notice, templateId} = useLoaderData();
+  const {html, notice, templateId, title} = useLoaderData();
 
   return (
     <Page>
-      <TitleBar title="Rendered Klaviyo Preview" />
+      <TitleBar title={title || "Rendered Klaviyo Preview"} />
       <Layout>
         <Layout.Section>
           <Card>

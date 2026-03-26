@@ -5,7 +5,6 @@ import {
   BlockStack,
   Box,
   Button,
-  Link,
   InlineStack,
   Text,
   reactExtension,
@@ -150,20 +149,16 @@ function BlockLauncher() {
         {historyNotice ? <Text>{historyNotice}</Text> : null}
 
         {previewHistory.length ? (
-          <EmailHistoryList
-            history={previewHistory}
-            navigation={navigation}
-            orderId={orderId}
-          />
+          <EmailHistoryList history={previewHistory} />
         ) : null}
 
         {!historyLoading && !previewHistory.length ? (
           <Text>No email history yet for this order.</Text>
         ) : null}
 
-        {history.length > HISTORY_PREVIEW_LIMIT ? (
+        {previewHistory.length ? (
           <Text>
-            Open the composer to view the rest of this order&apos;s email history.
+            Open the composer to view email previews and the full order history.
           </Text>
         ) : null}
       </BlockStack>
@@ -171,27 +166,13 @@ function BlockLauncher() {
   );
 }
 
-function EmailHistoryList({history, navigation, orderId}) {
+function EmailHistoryList({history}) {
   return (
     <BlockStack gap="small">
       {history.map((entry, index) => (
         <BlockStack key={entry.id} gap="small">
           <InlineStack inlineAlignment="start">
             <Badge>{buildHistorySummary(entry)}</Badge>
-          </InlineStack>
-
-          <InlineStack inlineAlignment="start">
-            <Link
-              onPress={() => {
-                openHistoryEmail({
-                  entryId: entry.id,
-                  navigation,
-                  orderId,
-                });
-              }}
-            >
-              View email
-            </Link>
           </InlineStack>
           {index < history.length - 1 ? <CenteredSeparator /> : null}
         </BlockStack>
@@ -229,17 +210,6 @@ function formatHistoryTimestamp(sentAt) {
 
 function buildHistorySummary(entry) {
   return `${labelEmailType(entry.emailType)} Sent | ${formatHistoryTimestamp(entry.sentAt)} - To: ${entry.customerEmail}`;
-}
-
-function openHistoryEmail({entryId, navigation, orderId}) {
-  const params = new URLSearchParams({
-    historyId: entryId,
-    mode: "history_email",
-    openedAt: String(Date.now()),
-    orderId,
-  });
-
-  navigation.navigate(`extension:${ACTION_HANDLE}?${params.toString()}`);
 }
 
 function CenteredSeparator() {

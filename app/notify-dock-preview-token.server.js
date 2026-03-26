@@ -60,6 +60,8 @@ export function normalizePreviewPayload(payload) {
     customerEmail: `${payload?.customerEmail || ""}`.trim(),
     emailType: `${payload?.emailType || ""}`.trim(),
     firstName: `${payload?.firstName || ""}`.trim(),
+    historyId: `${payload?.historyId || ""}`.trim(),
+    historyShop: `${payload?.historyShop || ""}`.trim(),
     orderNumber: `${payload?.orderNumber || ""}`.trim(),
     products: normalizePreviewProducts(payload?.products),
     shipDate: `${payload?.shipDate || ""}`.trim(),

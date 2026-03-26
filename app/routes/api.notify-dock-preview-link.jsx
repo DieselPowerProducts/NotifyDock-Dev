@@ -13,20 +13,23 @@ export async function loader({request}) {
 }
 
 export async function action({request}) {
-  const {cors} = await authenticate.admin(request);
+  const {cors, session} = await authenticate.admin(request);
 
   if (request.method === "OPTIONS") {
     return cors(new Response(null, {status: 204}));
   }
 
   const payload = await request.json().catch(() => null);
-  const previewPayload = normalizePreviewPayload(payload);
+  const previewPayload = normalizePreviewPayload({
+    ...payload,
+    historyShop: payload?.historyId ? session.shop : payload?.historyShop,
+  });
 
-  if (!previewPayload.emailType) {
+  if (!previewPayload.emailType && !previewPayload.historyId) {
     return cors(
       json(
         {
-          error: "emailType is required.",
+          error: "emailType or historyId is required.",
           url: "",
         },
         {status: 400},

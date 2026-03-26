@@ -9,7 +9,6 @@ import {
   Divider,
   Image,
   InlineStack,
-  Link,
   ProgressIndicator,
   Select,
   Text,
@@ -105,29 +104,13 @@ function ActionComposer() {
       setRenderedPreviewError("");
 
       try {
-        const response = await fetch("/api/notify-dock-preview-link", {
-          body: JSON.stringify(payload),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        });
-        const result = await response.json().catch(() => ({}));
+        const previewHref = await requestPreviewHref(payload);
 
         if (cancelled) {
           return;
         }
 
-        if (!response.ok) {
-          throw new Error(
-            result.error || "Notify Dock could not prepare the rendered preview.",
-          );
-        }
-
-        const embeddedPath = `${result.embeddedPath || ""}`.trim();
-        const fallbackUrl = `${result.url || ""}`.trim();
-
-        setRenderedPreviewHref(embeddedPath ? `app://${embeddedPath.replace(/^\//, "")}` : fallbackUrl);
+        setRenderedPreviewHref(previewHref);
       } catch (error) {
         if (cancelled) {
           return;
@@ -207,7 +190,6 @@ function ActionComposer() {
             {historyExpanded ? (
               <EmailHistoryList
                 history={history}
-                selectedHistoryId={selectedHistoryId}
               />
             ) : null}
           </BlockStack>
@@ -320,15 +302,12 @@ function ActionComposer() {
   );
 }
 
-function EmailHistoryList({history, selectedHistoryId}) {
+function EmailHistoryList({history}) {
   return (
     <BlockStack gap="small">
       {history.map((entry, index) => (
         <BlockStack key={entry.id} gap="small">
-          <EmailHistoryItem
-            entry={entry}
-            isSelected={entry.id === selectedHistoryId}
-          />
+          <EmailHistoryItem entry={entry} />
           {index < history.length - 1 ? <CenteredSeparator /> : null}
         </BlockStack>
       ))}
@@ -336,15 +315,7 @@ function EmailHistoryList({history, selectedHistoryId}) {
   );
 }
 
-function EmailHistoryItem({entry, isSelected}) {
-  const [expanded, setExpanded] = useState(isSelected);
-
-  useEffect(() => {
-    if (isSelected) {
-      setExpanded(true);
-    }
-  }, [isSelected]);
-
+function EmailHistoryItem({entry}) {
   return (
     <BlockStack gap="small">
       <InlineStack inlineAlignment="start">
@@ -352,16 +323,83 @@ function EmailHistoryItem({entry, isSelected}) {
       </InlineStack>
 
       <InlineStack inlineAlignment="start">
-        <Link
-          onPress={() => {
-            setExpanded(!expanded);
-          }}
-        >
-          {expanded ? "Hide email" : "View email"}
-        </Link>
+        <HistoryPreviewButton entry={entry} />
       </InlineStack>
+    </BlockStack>
+  );
+}
 
-      {expanded ? <EmailPreviewContent entry={entry} /> : null}
+function HistoryPreviewButton({entry}) {
+  const [error, setError] = useState("");
+  const [href, setHref] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHistoryPreviewHref() {
+      if (!entry?.id) {
+        setHref("");
+        setError("This saved email could not be opened.");
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const previewHref = await requestPreviewHref({
+          historyId: entry.id,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setHref(previewHref);
+      } catch (previewError) {
+        if (cancelled) {
+          return;
+        }
+
+        setHref("");
+        setError(
+          previewError instanceof Error
+            ? previewError.message
+            : "Notify Dock could not prepare this saved email preview.",
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadHistoryPreviewHref();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entry?.id]);
+
+  return (
+    <BlockStack gap="small">
+      {href ? (
+        <Button
+          disabled={loading}
+          href={href}
+          target="_blank"
+          variant="secondary"
+        >
+          {loading ? "Preparing preview..." : "View email"}
+        </Button>
+      ) : (
+        <Button disabled variant="secondary">
+          {loading ? "Preparing preview..." : "View email"}
+        </Button>
+      )}
+
+      {error ? <Text>{error}</Text> : null}
     </BlockStack>
   );
 }
@@ -563,4 +601,32 @@ function buildRenderedPreviewPayload({
     shipDate: shipDate || "",
     sku: sku || "",
   };
+}
+
+async function requestPreviewHref(payload) {
+  const response = await fetch("/api/notify-dock-preview-link", {
+    body: JSON.stringify(payload),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      result.error || "Notify Dock could not prepare the rendered preview.",
+    );
+  }
+
+  return buildPreviewHref(result);
+}
+
+function buildPreviewHref(result) {
+  const embeddedPath = `${result?.embeddedPath || ""}`.trim();
+  const fallbackUrl = `${result?.url || ""}`.trim();
+
+  return embeddedPath
+    ? `app://${embeddedPath.replace(/^\//, "")}`
+    : fallbackUrl;
 }

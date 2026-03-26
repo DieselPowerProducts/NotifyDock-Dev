@@ -21,6 +21,17 @@ export async function listEmailHistory({orderId, shop}) {
   });
 }
 
+export async function getEmailHistoryById({id, shop}) {
+  const historyModel = getHistoryModel();
+
+  return historyModel.findFirst({
+    where: {
+      id,
+      shop,
+    },
+  });
+}
+
 export async function recordEmailHistory({
   customerEmail,
   emailType,
