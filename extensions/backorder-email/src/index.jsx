@@ -119,7 +119,7 @@ function BlockLauncher() {
   const previewHistory = history.slice(0, HISTORY_PREVIEW_LIMIT);
 
   return (
-    <AdminBlock title="Notify Dock">
+    <AdminBlock title="Customer Email Composer">
       <BlockStack gap="base">
         <Text>
           Open the Composer to Review and Send Backorder, Shipping Delay, or Will-Call email&apos;s.

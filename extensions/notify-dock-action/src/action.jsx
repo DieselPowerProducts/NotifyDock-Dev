@@ -159,7 +159,7 @@ function ActionComposer() {
 
   return (
     <AdminAction
-      title="Notify Dock"
+      title="Customer Email Composer"
       primaryAction={
         <Button
           disabled={!canSend || sending}
