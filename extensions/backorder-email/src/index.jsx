@@ -156,11 +156,6 @@ function BlockLauncher() {
           <Text>No email history yet for this order.</Text>
         ) : null}
 
-        {previewHistory.length ? (
-          <Text>
-            Open the composer to view email previews and the full order history.
-          </Text>
-        ) : null}
       </BlockStack>
     </AdminBlock>
   );
