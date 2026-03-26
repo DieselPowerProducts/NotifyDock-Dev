@@ -7,12 +7,10 @@ import {
   Button,
   DateField,
   Divider,
-  Heading,
   Image,
   InlineStack,
   Link,
   ProgressIndicator,
-  Section,
   Select,
   Text,
   TextField,
@@ -49,7 +47,6 @@ function ActionComposer() {
     lookupError,
     orderNumber,
     products,
-    resetComposer,
     selectedHistoryId,
     sending,
     setEmailType,
@@ -57,7 +54,6 @@ function ActionComposer() {
     setHistoryExpanded,
     setShipDate,
     setSku,
-    setStatus,
     setSubject,
     shipDate,
     sku,
@@ -78,6 +74,7 @@ function ActionComposer() {
   });
   const selectedHistoryEntry =
     history.find((entry) => entry.id === selectedHistoryId) || null;
+  const previewProducts = buildPreviewProducts(products, sku);
   const [renderedPreviewError, setRenderedPreviewError] = useState("");
   const [renderedPreviewLoading, setRenderedPreviewLoading] = useState(false);
   const [renderedPreviewUrl, setRenderedPreviewUrl] = useState("");
@@ -187,11 +184,6 @@ function ActionComposer() {
       secondaryAction={<Button onPress={api.close}>Close</Button>}
     >
       <BlockStack gap="base">
-        <Text>
-          Review the selected template with ship date, SKU, product data, and order history before
-          sending it to Klaviyo.
-        </Text>
-
         {history.length ? (
           <BlockStack gap="base">
             <InlineStack inlineAlignment="start">
@@ -289,11 +281,6 @@ function ActionComposer() {
           </Box>
         </InlineStack>
 
-        <Text>
-          Separate multiple SKUs with commas. Notify Dock will search Shopify for each SKU and
-          inject every resolved title and image into the preview.
-        </Text>
-
         {loadingProduct ? (
           <ProgressIndicator size="small" accessibilityLabel="Loading product preview" />
         ) : null}
@@ -304,15 +291,7 @@ function ActionComposer() {
           <Banner tone="warning">{renderedPreviewError}</Banner>
         ) : null}
 
-        <TemplatePreview
-          customerEmail={customerEmail}
-          emailType={emailType}
-          firstName={firstName}
-          orderNumber={orderNumber}
-          products={products}
-          shipDate={shipDate}
-          sku={sku}
-        />
+        {previewProducts.length ? <ProductPreviewList products={previewProducts} /> : null}
 
         <InlineStack inlineAlignment="start" gap="base">
           {renderedPreviewUrl ? (
@@ -329,19 +308,6 @@ function ActionComposer() {
               {renderedPreviewLoading ? "Preparing preview..." : "Rendered preview"}
             </Button>
           )}
-
-          <Button onPress={resetComposer} variant="secondary">
-            Reset defaults
-          </Button>
-
-          <Button
-            onPress={() => {
-              setStatus(null);
-            }}
-            variant="tertiary"
-          >
-            Clear notice
-          </Button>
         </InlineStack>
       </BlockStack>
     </AdminAction>
@@ -394,80 +360,49 @@ function EmailHistoryItem({entry, isSelected}) {
   );
 }
 
-function TemplatePreview({
-  customerEmail,
-  emailType,
-  firstName,
-  orderNumber,
-  products,
-  shipDate,
-  sku,
-}) {
-  const resolvedProducts = products.length ? products : buildPlaceholderProducts(sku);
-  const resolvedShipDate = formatShipDate(shipDate) || "{{ event.ship_date }}";
-  const skuSummary =
-    resolvedProducts.map((product) => product.sku).filter(Boolean).join(", ") ||
-    "{{ event.sku }}";
-  const previewParagraphs = buildTemplateParagraphs({
-    emailType,
-    firstName,
-    orderNumber,
-    productCount: resolvedProducts.length,
-    shipDate: resolvedShipDate,
-  });
-
-  return (
-    <Section heading="Template preview">
-      <BlockStack gap="base">
-        <Text>
-          Synthetic preview of the Klaviyo email using the same fields this action sends.
-        </Text>
-
-        <InlineStack inlineAlignment="start" gap="base">
-          <Badge tone="info">{labelEmailType(emailType)}</Badge>
-          <Badge tone="info">SKUs: {skuSummary}</Badge>
-          {showsShipDate(emailType) ? (
-            <Badge tone="info">Ship date: {resolvedShipDate}</Badge>
-          ) : null}
-        </InlineStack>
-
-        <Divider />
-
-        <Text>To: {customerEmail || "{{ profile.email }}"}</Text>
-
-        {previewParagraphs.map((paragraph, index) => (
-          <Text key={`preview-paragraph-${index}`}>{paragraph}</Text>
-        ))}
-
-        <ProductPreviewList products={resolvedProducts} />
-      </BlockStack>
-    </Section>
-  );
-}
-
 function ProductPreviewList({products}) {
   return (
     <BlockStack gap="base">
       {products.map((product, index) => (
-        <Box key={`${product.sku || "sku"}-${index}`} padding="base">
-          <BlockStack gap="small">
-            {product.productImageUrl ? (
-              <Image
-                source={product.productImageUrl}
-                accessibilityLabel={product.productImageAlt || buildProductLabel(product)}
-              />
-            ) : (
-              <Box padding="base">
-                <Text>
-                  The product image will appear here when the SKU matches a Shopify product image.
-                </Text>
+        <BlockStack key={`${product.sku || "sku"}-${index}`} gap="base">
+          <Box padding="base">
+            <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
+              <Box
+                blockSize={120}
+                inlineSize={120}
+                maxInlineSize={120}
+                minInlineSize={120}
+              >
+                {product.productImageUrl ? (
+                  <Image
+                    source={product.productImageUrl}
+                    accessibilityLabel={
+                      product.productImageAlt || buildProductTitle(product)
+                    }
+                  />
+                ) : (
+                  <Box blockSize={120} inlineSize={120} padding="base">
+                    <Text>No image</Text>
+                  </Box>
+                )}
               </Box>
-            )}
 
-            <Heading size={3}>{buildProductLabel(product)}</Heading>
-            <Text>SKU: {product.sku || "{{ item.sku }}"}</Text>
-          </BlockStack>
-        </Box>
+              <Box inlineSize="60%">
+                <BlockStack gap="small">
+                  <Text fontWeight="bold">{buildProductTitle(product)}</Text>
+
+                  {buildProductVariantTitle(product) ? (
+                    <Text>{buildProductVariantTitle(product)}</Text>
+                  ) : null}
+
+                  <Text>SKU: {product.sku || "{{ item.sku }}"}</Text>
+                </BlockStack>
+              </Box>
+            </InlineStack>
+          </Box>
+
+          {index < products.length - 1 ? <Divider /> : null}
+        </BlockStack>
       ))}
     </BlockStack>
   );
@@ -524,103 +459,36 @@ function formatHistoryTimestamp(sentAt) {
   }
 }
 
-function formatShipDate(value) {
-  if (!value) {
+function buildProductTitle(product) {
+  return product?.productTitle || "{{ item.product_title }}";
+}
+
+function buildProductVariantTitle(product) {
+  if (!product?.productVariantTitle || product.productVariantTitle === "Default Title") {
     return "";
   }
 
-  const [year, month, day] = value.split("-").map(Number);
-
-  if (!year || !month || !day) {
-    return value;
-  }
-
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return product.productVariantTitle;
 }
 
-function buildProductLabel(product) {
-  if (!product?.productVariantTitle || product.productVariantTitle === "Default Title") {
-    return product?.productTitle || "{{ item.product_title }}";
+function buildPreviewProducts(products, sku) {
+  if (products.length) {
+    return products;
   }
 
-  return `${product.productTitle || "{{ item.product_title }}"} - ${product.productVariantTitle}`.trim();
-}
-
-function buildTemplateParagraphs({
-  emailType,
-  firstName,
-  orderNumber,
-  productCount,
-  shipDate,
-}) {
-  if (emailType === "will_call_ready") {
-    return [
-      `Pick Up on Location Order ${orderNumber || "#"}`,
-      `Hello ${firstName || "{{ profile.first_name|default:'there' }}"},`,
-      "Your order has been processed. We will contact you once your complete order is here and ready for pickup at Will Call.",
-      `Reference item${productCount === 1 ? "" : "s"} below.`,
-      "Thank you.",
-    ];
-  }
-
-  if (emailType === "will_call_in_progress") {
-    return [
-      `Hello ${firstName || "{{ profile.first_name|default:'there' }}"},`,
-      "Your order has been processed. We will contact you once your complete order is here and ready for pickup at Will Call.",
-      `Reference item${productCount === 1 ? "" : "s"} below.`,
-      "Thank you.",
-    ];
-  }
-
-  if (emailType === "shipping_delay") {
-    return [
-      "Thanks so much for shopping with Diesel Power Products, we really do appreciate it.",
-      `The below product${productCount === 1 ? " is" : "s are"} currently on backorder.`,
-      `Based upon information from the manufacturer, the current ship date is: ${shipDate}.`,
-      "HANG TIGHT: If you are okay to wait, you are good to go. Once we have tracking, or any other updates, we will forward them to this same email address.",
-      "CHECK OPTIONS: If you would like a comparable option that is on the shelf and ready to ship, our sales technicians can help.",
-      "CANCEL: If the backorder timeline is too long, we can cancel and refund the backordered item(s).",
-      "QUESTIONS: Reply to this email or reach out by phone or website chat, Monday through Friday from 6AM to 6PM Pacific.",
-    ];
-  }
-
-  return [
-    `The following product${productCount === 1 ? "" : "s"} are included in this backorder notice.`,
-    `Based upon information from the manufacturer, the current ship date of your part(s) is: ${shipDate}.`,
-    "HANG TIGHT: If you are okay to wait, you are good to go. Once we have tracking, or any other updates, we will forward them to this same email address.",
-    "CHECK OPTIONS: If you would like a comparable option that is on the shelf and ready to ship, our sales technicians can help.",
-    "CANCEL: If the backorder timeline is too long, we can cancel and refund the backordered item(s).",
-    "QUESTIONS: Reply to this email or reach out by phone or website chat, Monday through Friday from 6AM to 6PM Pacific.",
-  ];
-}
-
-function buildPlaceholderProducts(sku) {
   const requestedSkus = splitSkuInput(sku);
 
-  if (requestedSkus.length) {
-    return requestedSkus.map((requestedSku) => ({
-      productImageAlt: "",
-      productImageUrl: "",
-      productTitle: "{{ item.product_title }}",
-      productVariantTitle: "",
-      sku: requestedSku,
-    }));
+  if (!requestedSkus.length) {
+    return [];
   }
 
-  return [
-    {
-      productImageAlt: "",
-      productImageUrl: "",
-      productTitle: "{{ item.product_title }}",
-      productVariantTitle: "",
-      sku: "{{ item.sku }}",
-    },
-  ];
+  return requestedSkus.map((requestedSku) => ({
+    productImageAlt: "",
+    productImageUrl: "",
+    productTitle: "{{ item.product_title }}",
+    productVariantTitle: "",
+    sku: requestedSku,
+  }));
 }
 
 function splitSkuInput(value) {
