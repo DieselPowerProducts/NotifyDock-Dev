@@ -319,35 +319,63 @@ function EmailHistoryList({history}) {
 
 function HistoryTimelineItem({entry, isFirst, isLast}) {
   return (
-    <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
-      <HistoryTimelineRail isFirst={isFirst} isLast={isLast} />
+    <BlockStack gap="none">
+      {!isFirst ? (
+        <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+          <HistoryTimelineConnector />
+          <Box />
+        </InlineStack>
+      ) : null}
 
-      <Box paddingBlockEnd="base">
-        <BlockStack gap="small">
+      <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+        <HistoryTimelineDot />
+
+        <Box paddingBlockEnd="small">
           <InlineStack inlineAlignment="start">
             <Badge>{buildHistorySummary(entry)}</Badge>
           </InlineStack>
+        </Box>
+      </InlineStack>
 
+      <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
+        {!isLast ? <HistoryTimelineConnector /> : <HistoryTimelineSpacer />}
+
+        <Box paddingBlockEnd="base">
           <InlineStack inlineAlignment="start">
             <HistoryPreviewButton entry={entry} />
           </InlineStack>
-        </BlockStack>
-      </Box>
-    </InlineStack>
+        </Box>
+      </InlineStack>
+    </BlockStack>
   );
 }
 
-function HistoryTimelineRail({isFirst, isLast}) {
+function HistoryTimelineConnector() {
   return (
-    <Box inlineSize={20} minInlineSize={20} paddingBlockStart="small">
-      <BlockStack gap="none" inlineAlignment="center">
-        <Text>{isFirst ? " " : "│"}</Text>
-        <Text>{isFirst ? " " : "│"}</Text>
+    <Box inlineSize={20} minInlineSize={20}>
+      <InlineStack inlineAlignment="center">
+        <Text>│</Text>
+      </InlineStack>
+    </Box>
+  );
+}
+
+function HistoryTimelineDot() {
+  return (
+    <Box inlineSize={20} minInlineSize={20}>
+      <InlineStack inlineAlignment="center">
         <Text>●</Text>
-        <Text>{isLast ? " " : "│"}</Text>
-        <Text>{isLast ? " " : "│"}</Text>
-        <Text>{isLast ? " " : "│"}</Text>
-      </BlockStack>
+      </InlineStack>
+    </Box>
+  );
+}
+
+function HistoryTimelineSpacer() {
+  return (
+    <Box inlineSize={20} minInlineSize={20}>
+      <InlineStack inlineAlignment="center">
+        <Text> </Text>
+      </InlineStack>
     </Box>
   );
 }
