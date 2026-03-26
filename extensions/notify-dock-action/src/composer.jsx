@@ -39,8 +39,6 @@ export function useComposerState(target) {
   const [orderNumber, setOrderNumber] = useState("");
   const [firstName, setFirstName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [defaultSku, setDefaultSku] = useState("");
-  const [defaultProducts, setDefaultProducts] = useState([]);
   const [sku, setSku] = useState("");
   const [shipDate, setShipDate] = useState("");
   const [products, setProducts] = useState([]);
@@ -75,8 +73,6 @@ export function useComposerState(target) {
     setOrderNumber("");
     setFirstName("");
     setCustomerEmail("");
-    setDefaultSku("");
-    setDefaultProducts([]);
     setSku("");
     setShipDate("");
     setProducts([]);
@@ -128,15 +124,6 @@ export function useComposerState(target) {
                 firstName
                 lastName
               }
-              lineItems(first: 50) {
-                edges {
-                  node {
-                    currentQuantity
-                    title
-                    sku
-                  }
-                }
-              }
             }
           }`,
           {variables: {id: orderId}},
@@ -161,36 +148,16 @@ export function useComposerState(target) {
         }
 
         const order = result.data.order;
-        const activeLineItems = order.lineItems.edges
-          .map(({node}) => ({
-            currentQuantity: Number(node?.currentQuantity || 0),
-            title: node?.title || "",
-            sku: node?.sku || "",
-          }))
-          .filter(({currentQuantity, title, sku}) =>
-            currentQuantity > 0 && (title || sku),
-          );
-        const uniqueSkus = Array.from(
-          new Set(activeLineItems.map(({sku, title}) => sku || title).filter(Boolean)),
-        );
-        const primaryLineItem =
-          activeLineItems.find(({sku}) => sku) || activeLineItems[0];
         const customerEmail = [order.customer?.email, order.email].find(Boolean) || "";
         const firstName = [
           order.customer?.firstName,
           order.shippingAddress?.firstName,
           order.billingAddress?.firstName,
         ].find(Boolean) || "";
-        const resolvedSku = primaryLineItem?.sku || uniqueSkus[0] || "";
-        const fallbackProducts = buildFallbackProducts(primaryLineItem);
 
         setOrderNumber(order.name || "");
         setFirstName(firstName);
         setCustomerEmail(customerEmail);
-        setDefaultSku(resolvedSku);
-        setDefaultProducts(fallbackProducts);
-        setSku(resolvedSku);
-        setProducts(fallbackProducts);
         setLoadingOrder(false);
       } catch (_loadError) {
         if (!cancelled) {
@@ -312,32 +279,14 @@ export function useComposerState(target) {
           ? payload.missingSkus.filter(Boolean)
           : [];
 
-        setProducts(
-          resolvedProducts.length
-            ? resolvedProducts
-            : shouldUseDefaultFallback({
-                defaultProducts,
-                defaultSku,
-                requestedSkus,
-              })
-              ? defaultProducts
-              : [],
-        );
+        setProducts(resolvedProducts);
         setLookupError(buildMissingSkuMessage(missingSkus));
       } catch (lookupError) {
         if (cancelled) {
           return;
         }
 
-        setProducts(
-          shouldUseDefaultFallback({
-            defaultProducts,
-            defaultSku,
-            requestedSkus,
-          })
-            ? defaultProducts
-            : [],
-        );
+        setProducts([]);
         setLookupError(
           lookupError instanceof Error
             ? lookupError.message
@@ -354,7 +303,7 @@ export function useComposerState(target) {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [defaultProducts, defaultSku, sku]);
+  }, [sku]);
 
   useEffect(() => {
     let cancelled = false;
@@ -428,8 +377,8 @@ export function useComposerState(target) {
       }),
     );
     setShipDate("");
-    setSku(defaultSku);
-    setProducts(defaultProducts);
+    setSku("");
+    setProducts([]);
     setLookupError("");
     setStatus(null);
   }
@@ -655,10 +604,6 @@ function getOrderIdFromAdminUrl(launchUrl) {
   }
 }
 
-function normalizeSku(value) {
-  return `${value || ""}`.trim().toUpperCase();
-}
-
 function splitSkuInput(value) {
   return Array.from(
     new Set(
@@ -668,22 +613,6 @@ function splitSkuInput(value) {
         .filter(Boolean),
     ),
   );
-}
-
-function buildFallbackProducts(primaryLineItem) {
-  if (!primaryLineItem?.sku && !primaryLineItem?.title) {
-    return [];
-  }
-
-  return [
-    {
-      productImageAlt: primaryLineItem?.title || "",
-      productImageUrl: "",
-      productTitle: primaryLineItem?.title || "",
-      productVariantTitle: "",
-      sku: primaryLineItem?.sku || primaryLineItem?.title || "",
-    },
-  ];
 }
 
 function normalizeFetchedProduct(product) {
@@ -711,14 +640,6 @@ function serializeProductPayload(product) {
     product_variant_title: product.productVariantTitle || "",
     sku: product.sku || "",
   };
-}
-
-function shouldUseDefaultFallback({defaultProducts, defaultSku, requestedSkus}) {
-  return (
-    requestedSkus.length === 1 &&
-    normalizeSku(requestedSkus[0]) === normalizeSku(defaultSku) &&
-    defaultProducts.length > 0
-  );
 }
 
 function buildMissingSkuMessage(missingSkus) {
