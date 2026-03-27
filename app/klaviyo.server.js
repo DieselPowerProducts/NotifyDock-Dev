@@ -1,11 +1,14 @@
+import {formatNotifyDockShipDate} from "./ship-date";
+
 const KLAVIYO_API_URL = "https://a.klaviyo.com/api/events/";
 const KLAVIYO_TEMPLATE_RENDER_URL = "https://a.klaviyo.com/api/template-render";
 const KLAVIYO_API_REVISION = process.env.KLAVIYO_API_REVISION || "2024-07-15";
+
 const TEMPLATE_IDS = {
   backorder_notice:
     process.env.KLAVIYO_BACKORDER_TEMPLATE_ID || "TGEPX6",
   shipping_delay:
-    process.env.KLAVIYO_SHIPPING_DELAY_TEMPLATE_ID || "S5nvBk",
+    process.env.KLAVIYO_SHIPPING_DELAY_TEMPLATE_ID || "RsmiyA",
   will_call_in_progress:
     process.env.KLAVIYO_WILL_CALL_IN_PROGRESS_TEMPLATE_ID || "",
   will_call_ready:
@@ -50,6 +53,7 @@ export async function sendNotifyDockEvent({
   subject,
 }) {
   const privateApiKey = process.env.KLAVIYO_PRIVATE_API_KEY;
+  const formattedShipDate = formatNotifyDockShipDate(shipDate);
 
   if (!privateApiKey) {
     const error = new Error(
@@ -96,7 +100,7 @@ export async function sendNotifyDockEvent({
               sku: product.sku,
             })),
             sent_by_email: sentByEmail,
-            ship_date: shipDate,
+            ship_date: formattedShipDate,
             shop,
             sku,
             subject,
@@ -184,6 +188,7 @@ export async function renderNotifyDockTemplate({
   sku,
 }) {
   const templateId = TEMPLATE_IDS[emailType];
+  const formattedShipDate = formatNotifyDockShipDate(shipDate);
 
   if (!templateId) {
     const error = new Error(
@@ -212,7 +217,7 @@ export async function renderNotifyDockTemplate({
                 product_variant_title: product.productVariantTitle,
                 sku: product.sku,
               })),
-              ship_date: shipDate,
+              ship_date: formattedShipDate,
               sku,
             },
             profile: {

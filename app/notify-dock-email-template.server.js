@@ -1,3 +1,5 @@
+import {formatNotifyDockShipDate} from "./ship-date";
+
 export function buildNotifyDockMessage({
   emailType,
   firstName,
@@ -7,7 +9,7 @@ export function buildNotifyDockMessage({
 }) {
   const resolvedProducts = Array.isArray(products) ? products.filter(Boolean) : [];
   const productMarkup = buildProductMarkup(resolvedProducts);
-  const resolvedShipDate = formatShipDate(shipDate);
+  const resolvedShipDate = formatNotifyDockShipDate(shipDate);
   const itemLabel = resolvedProducts.length === 1 ? "item" : "items";
 
   if (emailType === "will_call_ready") {
@@ -77,25 +79,6 @@ function buildProductLabel(productTitle, productVariantTitle) {
   }
 
   return `${productTitle || ""} - ${productVariantTitle}`.trim();
-}
-
-function formatShipDate(value) {
-  if (!value) {
-    return "";
-  }
-
-  const [year, month, day] = `${value}`.split("-").map(Number);
-
-  if (!year || !month || !day) {
-    return `${value}`.trim();
-  }
-
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 function escapeHtml(value) {
