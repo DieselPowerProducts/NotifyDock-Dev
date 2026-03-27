@@ -10,7 +10,7 @@ const TEMPLATE_IDS = {
   shipping_delay:
     process.env.KLAVIYO_SHIPPING_DELAY_TEMPLATE_ID || "RsmiyA",
   will_call_in_progress:
-    process.env.KLAVIYO_WILL_CALL_IN_PROGRESS_TEMPLATE_ID || "",
+    process.env.KLAVIYO_WILL_CALL_IN_PROGRESS_TEMPLATE_ID || "RV7A6w",
   will_call_ready:
     process.env.KLAVIYO_WILL_CALL_READY_TEMPLATE_ID || "",
 };
