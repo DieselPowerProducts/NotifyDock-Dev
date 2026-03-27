@@ -6,6 +6,7 @@ const EMAIL_TYPE_BY_METRIC_NAME = Object.fromEntries(
 );
 const EMAIL_HISTORY_SETUP_ERROR =
   "Notify Dock email history is not ready yet. Run prisma generate and apply the latest migration.";
+const MAX_VISIBLE_HISTORY_ITEMS = 5;
 
 export async function listEmailHistory({orderId, shop}) {
   const historyModel = getHistoryModel();
@@ -18,6 +19,7 @@ export async function listEmailHistory({orderId, shop}) {
     orderBy: {
       sentAt: "desc",
     },
+    take: MAX_VISIBLE_HISTORY_ITEMS,
   });
 }
 
