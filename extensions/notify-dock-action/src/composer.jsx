@@ -46,9 +46,6 @@ export function useComposerState(target) {
   const [products, setProducts] = useState([]);
   const [emailType, setEmailType] = useState(DEFAULT_EMAIL_TYPE);
   const [fromAddress, setFromAddress] = useState(DEFAULT_FROM_OPTIONS[0].value);
-  const [fromOptions, setFromOptions] = useState(DEFAULT_FROM_OPTIONS);
-  const [fromOptionsLoading, setFromOptionsLoading] = useState(false);
-  const [fromOptionsNotice, setFromOptionsNotice] = useState("");
   const [subject, setSubject] = useState(
       buildSubject({
       emailType: DEFAULT_EMAIL_TYPE,
@@ -81,9 +78,6 @@ export function useComposerState(target) {
     setProducts([]);
     setEmailType(DEFAULT_EMAIL_TYPE);
     setFromAddress(DEFAULT_FROM_OPTIONS[0].value);
-    setFromOptions(DEFAULT_FROM_OPTIONS);
-    setFromOptionsLoading(false);
-    setFromOptionsNotice("");
     setSubjectDirty(false);
     setHistory([]);
     setHistoryHasMore(false);
@@ -177,63 +171,6 @@ export function useComposerState(target) {
       cancelled = true;
     };
   }, [api, launchNonce, orderId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadFromOptions() {
-      setFromOptionsLoading(true);
-      setFromOptionsNotice("");
-
-      try {
-        const response = await fetch("/api/from-addresses");
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(payload.error || "Notify Dock could not load sender emails.");
-        }
-
-        if (cancelled) {
-          return;
-        }
-
-        const options = Array.isArray(payload.options)
-          ? payload.options.filter((option) => option?.value && option?.label)
-          : [];
-
-        setFromOptions(options);
-        setFromOptionsNotice(`${payload.warning || ""}`.trim());
-        setFromAddress((currentValue) =>
-          selectPreferredFromAddress({
-            currentValue,
-            options,
-          }),
-        );
-      } catch (fromOptionsError) {
-        if (cancelled) {
-          return;
-        }
-
-        setFromOptions(DEFAULT_FROM_OPTIONS);
-        setFromOptionsNotice(
-          fromOptionsError instanceof Error
-            ? fromOptionsError.message
-            : "Notify Dock could not load sender emails.",
-        );
-        setFromAddress(DEFAULT_FROM_OPTIONS[0].value);
-      } finally {
-        if (!cancelled) {
-          setFromOptionsLoading(false);
-        }
-      }
-    }
-
-    loadFromOptions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [launchNonce]);
 
   useEffect(() => {
     if (!subjectDirty) {
@@ -463,9 +400,7 @@ export function useComposerState(target) {
     error,
     firstName,
     fromAddress,
-    fromOptions,
-    fromOptionsLoading,
-    fromOptionsNotice,
+    fromOptions: DEFAULT_FROM_OPTIONS,
     handleSend,
     history,
     historyHasMore,
@@ -572,20 +507,8 @@ function buildSubject({emailType, orderNumber, shopName}) {
     return `Shipping delay for order ${orderNumber || "#"}`.trim();
   }
 
-  return `Message from ${shopName || "{{ shop.name }}"}`.trim();
-}
-
-function selectPreferredFromAddress({currentValue, options}) {
-  if (!Array.isArray(options) || !options.length) {
-    return "";
+    return `Message from ${shopName || "{{ shop.name }}"}`.trim();
   }
-
-  if (currentValue && options.some((option) => option.value === currentValue)) {
-    return currentValue;
-  }
-
-  return options[0].value;
-}
 
 function requiresShipDate(emailType) {
   return emailType === "backorder_notice" || emailType === "shipping_delay";

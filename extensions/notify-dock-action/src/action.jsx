@@ -35,7 +35,6 @@ function ActionComposer() {
     firstName,
     fromAddress,
     fromOptions,
-    fromOptionsLoading,
     handleSend,
     history,
     historyHasMore,
@@ -250,7 +249,7 @@ function ActionComposer() {
 
           <Box inlineSize="48%">
             <Select
-              disabled={fromOptionsLoading || !fromOptions.length}
+              disabled={!fromOptions.length}
               label="From"
               options={fromOptions}
               value={fromAddress}
