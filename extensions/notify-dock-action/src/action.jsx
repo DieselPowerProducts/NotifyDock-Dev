@@ -671,9 +671,9 @@ function DynamicDelayEditor({
   const usesBusinessDaysDelay = detail.delayState === "business_days_12_15";
 
   return (
-    <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-      <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-        <Box inlineSize={150} maxInlineSize={150} minInlineSize={150}>
+    <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
+      <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
+        <Box inlineSize={125} maxInlineSize={125} minInlineSize={125}>
           <DateField
             disabled={disabled || usesBusinessDaysDelay}
             id={fieldId}
