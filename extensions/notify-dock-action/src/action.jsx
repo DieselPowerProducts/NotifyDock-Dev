@@ -338,12 +338,6 @@ function ActionComposer() {
 
         {showsSku(emailType) && lookupError ? <Banner tone="warning">{lookupError}</Banner> : null}
 
-        {isDynamicShippingDelay(emailType) ? (
-          <Banner tone="info">
-            Dynamic Shipping Delay draft: the item-level delay logic is wired in, and you still need to provide the final copy for each condition before we lock the template content.
-          </Banner>
-        ) : null}
-
         {renderedPreviewError ? (
           <Banner tone="warning">{renderedPreviewError}</Banner>
         ) : null}
@@ -353,21 +347,11 @@ function ActionComposer() {
             dynamicDelayDetails={dynamicDelayDetails}
             dynamicGlobalShipDate={dynamicGlobalShipDate}
             emailType={emailType}
-            onClearDynamicGlobalShipDate={() => {
-              setDynamicGlobalShipDate("");
-            }}
             onDynamicDelayDateChange={(sku, value) => {
               setDynamicDelayDetails((current) =>
-                updateDynamicDelayDetail(current, sku, {delayDate: value}),
-              );
-            }}
-            onDynamicDelayStateChange={(sku, value) => {
-              setDynamicDelayDetails((current) =>
                 updateDynamicDelayDetail(current, sku, {
-                  delayDate: value === "specific_date"
-                    ? getExistingDynamicDelayDate(current, sku)
-                    : "",
-                  delayState: value,
+                  delayDate: value,
+                  delayState: value ? "specific_date" : "",
                 }),
               );
             }}
@@ -560,9 +544,7 @@ function ProductPreviewList({
   dynamicDelayDetails,
   dynamicGlobalShipDate,
   emailType,
-  onClearDynamicGlobalShipDate,
   onDynamicDelayDateChange,
-  onDynamicDelayStateChange,
   onDynamicGlobalShipDateChange,
   products,
 }) {
@@ -579,42 +561,22 @@ function ProductPreviewList({
     <BlockStack gap="base">
       {isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products) ? (
         <Box padding="base">
-          <BlockStack gap="small">
-            <Text fontWeight="bold">Global ship date</Text>
-            <Text>
-              Set one shared date for every listed SKU. Item-level delay controls stay disabled while a global date is set.
-            </Text>
-
-            <InlineStack inlineAlignment="space-between">
-              <Box inlineSize="72%">
-                <DateField
-                  disabled={hasConfiguredPerItemDelay && !dynamicGlobalShipDate}
-                  label="Global ship date"
-                  value={dynamicGlobalShipDate}
-                  onChange={onDynamicGlobalShipDateChange}
-                />
-              </Box>
-
-              <Box inlineSize="24%">
-                <Button
-                  disabled={!dynamicGlobalShipDate}
-                  onPress={onClearDynamicGlobalShipDate}
-                  variant="secondary"
-                >
-                  Clear
-                </Button>
-              </Box>
-            </InlineStack>
-
-            {hasConfiguredPerItemDelay && !dynamicGlobalShipDate ? (
-              <Text>Clear item-level delay selections to use one shared date for all SKUs.</Text>
-            ) : null}
-          </BlockStack>
+          <DateField
+            disabled={hasConfiguredPerItemDelay && !dynamicGlobalShipDate}
+            label="Global Ship Date"
+            value={dynamicGlobalShipDate}
+            onChange={onDynamicGlobalShipDateChange}
+          />
         </Box>
+      ) : null}
+
+      {isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products) ? (
+        <Divider />
       ) : null}
 
       {products.map((product, index) => (
         <BlockStack key={`${product.sku || "sku"}-${index}`} gap="base">
+          <Divider />
           <Box padding="base">
             <BlockStack gap="base">
               <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
@@ -658,17 +620,14 @@ function ProductPreviewList({
                   onDelayDateChange={(value) => {
                     onDynamicDelayDateChange(product.sku, value);
                   }}
-                  onDelayStateChange={(value) => {
-                    onDynamicDelayStateChange(product.sku, value);
-                  }}
                 />
               ) : null}
             </BlockStack>
           </Box>
-
-          {index < products.length - 1 ? <Divider /> : null}
         </BlockStack>
       ))}
+
+      {products.length ? <Divider /> : null}
     </BlockStack>
   );
 }
@@ -677,32 +636,21 @@ function DynamicDelayEditor({
   detail,
   disabled,
   onDelayDateChange,
-  onDelayStateChange,
 }) {
   return (
-    <BlockStack gap="small">
-      <Select
-        disabled={disabled}
-        label="Delay update"
-        options={DYNAMIC_DELAY_STATE_OPTIONS}
-        placeholder="Choose the update for this SKU"
-        value={detail.delayState || ""}
-        onChange={onDelayStateChange}
-      />
-
-      {detail.delayState === "specific_date" ? (
+    <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+      <Box inlineSize="32%">
         <DateField
           disabled={disabled}
-          label="Item ship date"
+          label=""
+          placeholder=""
           value={detail.delayDate || ""}
           onChange={onDelayDateChange}
         />
-      ) : null}
+      </Box>
 
-      {disabled ? (
-        <Text>Using the shared global ship date for every listed SKU.</Text>
-      ) : null}
-    </BlockStack>
+      <Text>Item Specific Date</Text>
+    </InlineStack>
   );
 }
 
@@ -882,12 +830,6 @@ function buildRenderedPreviewPayload({
   };
 }
 
-const DYNAMIC_DELAY_STATE_OPTIONS = [
-  {label: "Specific date", value: "specific_date"},
-  {label: "12-15 business days", value: "business_days_12_15"},
-  {label: "No date yet", value: "no_date_yet"},
-];
-
 const EMPTY_DYNAMIC_DELAY_DETAIL = {
   delayDate: "",
   delayState: "",
@@ -925,14 +867,6 @@ function updateDynamicDelayDetail(currentDetails, sku, updates) {
       ...updates,
     };
   });
-}
-
-function getExistingDynamicDelayDate(currentDetails, sku) {
-  return (
-    currentDetails.find(
-      (detail) => `${detail?.sku || ""}`.trim() === `${sku || ""}`.trim(),
-    )?.delayDate || ""
-  );
 }
 
 function decoratePreviewProducts({dynamicDelayDetails, emailType, products}) {
@@ -997,16 +931,6 @@ function isDynamicShippingDelayReady({
 
   return dynamicDelayDetails.length === products.length &&
     dynamicDelayDetails.every((detail) => {
-      const delayState = `${detail?.delayState || ""}`.trim();
-
-      if (!delayState) {
-        return false;
-      }
-
-      if (delayState !== "specific_date") {
-        return true;
-      }
-
       return Boolean(`${detail?.delayDate || ""}`.trim());
     });
 }
