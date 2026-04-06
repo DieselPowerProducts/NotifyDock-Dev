@@ -343,23 +343,25 @@ function ActionComposer() {
         ) : null}
 
         {previewProducts.length ? (
-          <ProductPreviewList
-            dynamicDelayDetails={dynamicDelayDetails}
-            dynamicGlobalShipDate={dynamicGlobalShipDate}
-            emailType={emailType}
-            onDynamicDelayDateChange={(sku, value) => {
-              setDynamicDelayDetails((current) =>
-                updateDynamicDelayDetail(current, sku, {
-                  delayDate: value,
-                  delayState: value ? "specific_date" : "",
-                }),
-              );
-            }}
-            onDynamicGlobalShipDateChange={(value) => {
-              setDynamicGlobalShipDate(value);
-            }}
-            products={previewProducts}
-          />
+          <Box paddingBlockStart="base">
+            <ProductPreviewList
+              dynamicDelayDetails={dynamicDelayDetails}
+              dynamicGlobalShipDate={dynamicGlobalShipDate}
+              emailType={emailType}
+              onDynamicDelayDateChange={(sku, value) => {
+                setDynamicDelayDetails((current) =>
+                  updateDynamicDelayDetail(current, sku, {
+                    delayDate: value,
+                    delayState: value ? "specific_date" : "",
+                  }),
+                );
+              }}
+              onDynamicGlobalShipDateChange={(value) => {
+                setDynamicGlobalShipDate(value);
+              }}
+              products={previewProducts}
+            />
+          </Box>
         ) : null}
 
         <InlineStack inlineAlignment="start" gap="base">
@@ -556,11 +558,14 @@ function ProductPreviewList({
   const hasConfiguredPerItemDelay = dynamicDelayDetails.some(
     (detail) => detail.delayState || detail.delayDate,
   );
+  const showDynamicGlobalSection =
+    isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products);
 
   return (
     <BlockStack gap="base">
-      {isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products) ? (
-        <BlockStack gap="small">
+      {showDynamicGlobalSection ? (
+        <BlockStack gap="base">
+          <Divider />
           <Text>Global Ship Date - Enter if all products share the same date</Text>
           <DateField
             disabled={hasConfiguredPerItemDelay && !dynamicGlobalShipDate}
@@ -568,16 +573,13 @@ function ProductPreviewList({
             value={dynamicGlobalShipDate}
             onChange={onDynamicGlobalShipDateChange}
           />
+          <Divider />
         </BlockStack>
-      ) : null}
-
-      {isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products) ? (
-        <Divider />
       ) : null}
 
       {products.map((product, index) => (
         <BlockStack key={`${product.sku || "sku"}-${index}`} gap="base">
-          <Divider />
+          {showDynamicGlobalSection && index === 0 ? null : <Divider />}
           <Box padding="base">
             <BlockStack gap="base">
               <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
