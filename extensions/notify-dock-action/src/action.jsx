@@ -671,20 +671,22 @@ function DynamicDelayEditor({
   const usesBusinessDaysDelay = detail.delayState === "business_days_12_15";
 
   return (
-    <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-      <Box inlineSize={150} maxInlineSize={150} minInlineSize={150}>
-        <DateField
-          disabled={disabled || usesBusinessDaysDelay}
-          id={fieldId}
-          label=""
-          name={fieldName}
-          placeholder=""
-          value={detail.delayDate || ""}
-          onChange={onDelayDateChange}
-        />
-      </Box>
+    <InlineStack blockAlignment="center" gap="large" inlineAlignment="start">
+      <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+        <Box inlineSize={150} maxInlineSize={150} minInlineSize={150}>
+          <DateField
+            disabled={disabled || usesBusinessDaysDelay}
+            id={fieldId}
+            label=""
+            name={fieldName}
+            placeholder=""
+            value={detail.delayDate || ""}
+            onChange={onDelayDateChange}
+          />
+        </Box>
 
-      <Text>Item Specific Date</Text>
+        <Text>Item Specific Date</Text>
+      </InlineStack>
 
       <Checkbox
         checked={usesBusinessDaysDelay}
