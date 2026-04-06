@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   DateField,
+  DatePicker,
   Divider,
   Image,
   InlineStack,
@@ -640,21 +641,76 @@ function DynamicDelayEditor({
   disabled,
   onDelayDateChange,
 }) {
-  return (
-    <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-      <Box inlineSize="32%">
-        <DateField
-          disabled={disabled}
-          label=""
-          placeholder=""
-          value={detail.delayDate || ""}
-          onChange={onDelayDateChange}
-        />
-      </Box>
-
-      <Text>Item Specific Date</Text>
-    </InlineStack>
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerYearMonth, setPickerYearMonth] = useState(() =>
+    buildPickerYearMonth(detail.delayDate),
   );
+
+  useEffect(() => {
+    if (disabled) {
+      setPickerOpen(false);
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    setPickerYearMonth(buildPickerYearMonth(detail.delayDate));
+  }, [detail.delayDate]);
+
+  return (
+    <BlockStack gap="small">
+      <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+        <Button
+          disabled={disabled}
+          onPress={() => {
+            setPickerOpen((open) => !open);
+          }}
+          variant="secondary"
+        >
+          {detail.delayDate || "Select date"}
+        </Button>
+
+        <Text>Item Specific Date</Text>
+      </InlineStack>
+
+      {pickerOpen && !disabled ? (
+        <Box paddingBlockStart="small">
+          <DatePicker
+            selected={detail.delayDate || undefined}
+            yearMonth={pickerYearMonth}
+            onChange={(selected) => {
+              if (typeof selected !== "string") {
+                return;
+              }
+
+              onDelayDateChange(selected);
+              setPickerYearMonth(buildPickerYearMonth(selected));
+              setPickerOpen(false);
+            }}
+            onYearMonthChange={setPickerYearMonth}
+          />
+        </Box>
+      ) : null}
+    </BlockStack>
+  );
+}
+
+function buildPickerYearMonth(dateString) {
+  const candidate = `${dateString || ""}`.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) {
+    const [year, month] = candidate.split("-").map(Number);
+
+    if (year && month) {
+      return {year, month};
+    }
+  }
+
+  const today = new Date();
+
+  return {
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+  };
 }
 
 function EmailPreviewContent({entry}) {
