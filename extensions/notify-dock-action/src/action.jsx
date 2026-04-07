@@ -7,6 +7,7 @@ import {
   Button,
   Checkbox,
   DateField,
+  DatePicker,
   Divider,
   Image,
   InlineStack,
@@ -590,6 +591,60 @@ function ProductPreviewList({
   );
   const showDynamicGlobalSection =
     isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products);
+  const [activeEditorSku, setActiveEditorSku] = useState("");
+  const [draftDelayDate, setDraftDelayDate] = useState("");
+  const [draftDelayState, setDraftDelayState] = useState("");
+
+  useEffect(() => {
+    if (!activeEditorSku) {
+      return;
+    }
+
+    if (globalDelayActive) {
+      setActiveEditorSku("");
+      setDraftDelayDate("");
+      setDraftDelayState("");
+      return;
+    }
+
+    if (!products.some((product) => `${product?.sku || ""}`.trim() === activeEditorSku)) {
+      setActiveEditorSku("");
+      setDraftDelayDate("");
+      setDraftDelayState("");
+    }
+  }, [activeEditorSku, globalDelayActive, products]);
+
+  function openDynamicDelayEditor(sku) {
+    const normalizedSku = `${sku || ""}`.trim();
+    const detail = dynamicDelayLookup.get(normalizedSku) || EMPTY_DYNAMIC_DELAY_DETAIL;
+
+    setActiveEditorSku(normalizedSku);
+    setDraftDelayDate(
+      detail.delayState === "specific_date" ? `${detail.delayDate || ""}`.trim() : "",
+    );
+    setDraftDelayState(
+      detail.delayState === "business_days_12_15" ? "business_days_12_15" : "",
+    );
+  }
+
+  function closeDynamicDelayEditor() {
+    setActiveEditorSku("");
+    setDraftDelayDate("");
+    setDraftDelayState("");
+  }
+
+  function applyDynamicDelayEditor(sku) {
+    const normalizedDate = `${draftDelayDate || ""}`.trim();
+    const usesBusinessDaysDelay = draftDelayState === "business_days_12_15";
+
+    if (usesBusinessDaysDelay) {
+      onDynamicDelayStateChange(sku, true);
+    } else {
+      onDynamicDelayDateChange(sku, normalizedDate);
+    }
+
+    closeDynamicDelayEditor();
+  }
 
   return (
     <BlockStack gap="base">
@@ -611,53 +666,65 @@ function ProductPreviewList({
         <BlockStack key={`${product.sku || "sku"}-${index}`} gap="base">
           {showDynamicGlobalSection && index === 0 ? null : <Divider />}
           <Box padding="small">
-            <BlockStack gap="small">
-              <InlineStack blockAlignment="start" gap="small" inlineAlignment="start">
-                <Box
-                  blockSize={50}
-                  inlineSize={50}
-                  maxInlineSize={50}
-                  minInlineSize={50}
-                >
-                  {product.productImageUrl ? (
-                    <Image
-                      source={product.productImageUrl}
-                      accessibilityLabel={
-                        product.productImageAlt || buildProductTitle(product)
-                      }
-                    />
-                  ) : (
-                    <Box blockSize={50} inlineSize={50} padding="small">
-                      <Text>No image</Text>
-                    </Box>
-                  )}
-                </Box>
+            {isDynamicShippingDelay(emailType) &&
+            !product.isPlaceholder &&
+            `${product.sku || ""}`.trim() === activeEditorSku ? (
+              <DynamicDelayEditorCard
+                delayDate={draftDelayDate}
+                delayState={draftDelayState}
+                product={product}
+                onApply={() => {
+                  applyDynamicDelayEditor(product.sku);
+                }}
+                onCancel={closeDynamicDelayEditor}
+                onDelayDateChange={setDraftDelayDate}
+                onDelayStateChange={setDraftDelayState}
+              />
+            ) : (
+              <BlockStack gap="small">
+                <InlineStack blockAlignment="start" gap="small" inlineAlignment="start">
+                  <Box
+                    blockSize={50}
+                    inlineSize={50}
+                    maxInlineSize={50}
+                    minInlineSize={50}
+                  >
+                    {product.productImageUrl ? (
+                      <Image
+                        source={product.productImageUrl}
+                        accessibilityLabel={
+                          product.productImageAlt || buildProductTitle(product)
+                        }
+                      />
+                    ) : (
+                      <Box blockSize={50} inlineSize={50} padding="small">
+                        <Text>No image</Text>
+                      </Box>
+                    )}
+                  </Box>
 
-                <Box inlineSize="72%">
-                  <BlockStack gap="small">
-                    <Text fontWeight="bold">
-                      {buildCompactProductTitle(product)}
-                    </Text>
+                  <Box inlineSize="72%">
+                    <BlockStack gap="small">
+                      <Text fontWeight="bold">
+                        {buildCompactProductTitle(product)}
+                      </Text>
 
-                    <Text>SKU: {product.sku || "{{ item.sku }}"}</Text>
-                  </BlockStack>
-                </Box>
-              </InlineStack>
+                      <Text>SKU: {product.sku || "{{ item.sku }}"}</Text>
+                    </BlockStack>
+                  </Box>
+                </InlineStack>
 
-              {isDynamicShippingDelay(emailType) && !product.isPlaceholder ? (
-                <DynamicDelayEditor
-                  detail={dynamicDelayLookup.get(product.sku) || EMPTY_DYNAMIC_DELAY_DETAIL}
-                  disabled={globalDelayActive}
-                  sku={product.sku || `${index}`}
-                  onDelayDateChange={(value) => {
-                    onDynamicDelayDateChange(product.sku, value);
-                  }}
-                  onDelayStateChange={(value) => {
-                    onDynamicDelayStateChange(product.sku, value);
-                  }}
-                />
-              ) : null}
-            </BlockStack>
+                {isDynamicShippingDelay(emailType) && !product.isPlaceholder ? (
+                  <DynamicDelaySummary
+                    detail={dynamicDelayLookup.get(product.sku) || EMPTY_DYNAMIC_DELAY_DETAIL}
+                    disabled={globalDelayActive}
+                    onEdit={() => {
+                      openDynamicDelayEditor(product.sku || `${index}`);
+                    }}
+                  />
+                ) : null}
+              </BlockStack>
+            )}
           </Box>
         </BlockStack>
       ))}
@@ -667,45 +734,101 @@ function ProductPreviewList({
   );
 }
 
-function DynamicDelayEditor({
+function DynamicDelaySummary({
   detail,
   disabled,
-  sku,
-  onDelayDateChange,
-  onDelayStateChange,
+  onEdit,
 }) {
-  const fieldId = `dynamic-delay-date-${sanitizeFieldToken(sku)}`;
-  const fieldName = `${fieldId}-input`;
-  const businessDaysCheckboxId = `${fieldId}-business-days`;
-  const usesBusinessDaysDelay = detail.delayState === "business_days_12_15";
-
   return (
     <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
-      <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
-        <Box inlineSize={125} maxInlineSize={125} minInlineSize={125}>
-          <DateField
-            disabled={disabled || usesBusinessDaysDelay}
-            id={fieldId}
-            label=""
-            name={fieldName}
-            placeholder=""
-            value={detail.delayDate || ""}
-            onChange={onDelayDateChange}
-          />
-        </Box>
+      <Button
+        disabled={disabled}
+        onPress={onEdit}
+        variant="secondary"
+      >
+        {buildDynamicDelaySummaryLabel(detail)}
+      </Button>
 
-        <Text>Item Specific Date</Text>
-      </InlineStack>
+      <Text>{buildDynamicDelaySummaryText(detail)}</Text>
+    </InlineStack>
+  );
+}
+
+function DynamicDelayEditorCard({
+  delayDate,
+  delayState,
+  onApply,
+  onCancel,
+  onDelayDateChange,
+  onDelayStateChange,
+  product,
+}) {
+  const usesBusinessDaysDelay = delayState === "business_days_12_15";
+
+  return (
+    <BlockStack gap="base">
+      <BlockStack gap="small">
+        <Text fontWeight="bold">{buildCompactProductTitle(product)}</Text>
+        <Text>SKU: {product.sku || "{{ item.sku }}"}</Text>
+      </BlockStack>
+
+      <DatePicker
+        disabled={usesBusinessDaysDelay}
+        selected={delayDate || undefined}
+        onChange={(value) => {
+          if (typeof value !== "string") {
+            return;
+          }
+
+          onDelayDateChange(value);
+          onDelayStateChange("specific_date");
+        }}
+      />
 
       <Checkbox
         checked={usesBusinessDaysDelay}
-        disabled={disabled}
-        id={businessDaysCheckboxId}
         label="Built to Order 12-15 Day Delay"
-        onChange={onDelayStateChange}
+        onChange={(value) => {
+          if (value) {
+            onDelayDateChange("");
+            onDelayStateChange("business_days_12_15");
+            return;
+          }
+
+          onDelayStateChange("");
+        }}
       />
-    </InlineStack>
+
+      <InlineStack gap="small" inlineAlignment="start">
+        <Button onPress={onApply} variant="primary">
+          Apply
+        </Button>
+        <Button onPress={onCancel} variant="secondary">
+          Cancel
+        </Button>
+      </InlineStack>
+    </BlockStack>
   );
+}
+
+function buildDynamicDelaySummaryLabel(detail) {
+  if (detail.delayState === "business_days_12_15") {
+    return "12-15 Day Delay";
+  }
+
+  if (`${detail.delayDate || ""}`.trim()) {
+    return detail.delayDate;
+  }
+
+  return "Set Item Date";
+}
+
+function buildDynamicDelaySummaryText(detail) {
+  if (detail.delayState === "business_days_12_15") {
+    return "Built to Order";
+  }
+
+  return "Item Specific Date";
 }
 
 function sanitizeFieldToken(value) {
