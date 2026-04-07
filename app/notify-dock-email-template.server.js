@@ -1,3 +1,8 @@
+import {
+  buildBusinessDayDelayText,
+  isBusinessDaysDelayState,
+  SPECIFIC_DATE_DELAY_STATE,
+} from "./dynamic-delay";
 import {formatNotifyDockShipDate} from "./ship-date";
 
 const DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE = "dynamic_shipping_delay";
@@ -89,11 +94,6 @@ export function buildDynamicShippingDelayDetailsHtml({
   products = [],
 }) {
   const resolvedProducts = Array.isArray(products) ? products.filter(Boolean) : [];
-  const allProductsUseBusinessDaysDelay =
-    resolvedProducts.length &&
-    resolvedProducts.every(
-      (product) => `${product?.delayState || ""}`.trim() === "business_days_12_15",
-    );
 
   if (!resolvedProducts.length) {
     return buildDynamicEmptyProductTable();
@@ -106,13 +106,6 @@ export function buildDynamicShippingDelayDetailsHtml({
     ].join("");
   }
 
-  if (allProductsUseBusinessDaysDelay) {
-    return [
-      resolvedProducts.map((product) => buildDynamicProductTable({product})).join(""),
-      buildDynamicBusinessDaysTable(),
-    ].join("");
-  }
-
   return resolvedProducts
     .map((product) => {
       const resolvedDelayDate = formatNotifyDockShipDate(product.delayDate);
@@ -122,6 +115,8 @@ export function buildDynamicShippingDelayDetailsHtml({
           product,
           statusMarkup: buildDynamicDelayStatusText({
             delayDate: resolvedDelayDate,
+            delayRangeEnd: product.delayRangeEnd,
+            delayRangeStart: product.delayRangeStart,
             delayState: product.delayState,
           }),
         }),
@@ -130,13 +125,23 @@ export function buildDynamicShippingDelayDetailsHtml({
     .join("");
 }
 
-function buildDynamicDelayStatusText({delayDate, delayState}) {
-  if (delayState === "specific_date") {
+function buildDynamicDelayStatusText({
+  delayDate,
+  delayRangeEnd,
+  delayRangeStart,
+  delayState,
+}) {
+  if (delayState === SPECIFIC_DATE_DELAY_STATE) {
     return `Based on information that we have received from the manufacturer, the current ship date of your part(s) is: <strong>${escapeHtml(delayDate || "Insert Ship date")}</strong>`;
   }
 
-  if (delayState === "business_days_12_15") {
-    return "Based on information that we have received from the manufacturer, the current ship date of your part(s) is 12-15 business days.";
+  if (isBusinessDaysDelayState(delayState)) {
+    const businessDayDelayText = buildBusinessDayDelayText({
+      delayRangeEnd,
+      delayRangeStart,
+    });
+
+    return `Based on information that we have received from the manufacturer, the current ship date of your part(s) is ${escapeHtml(businessDayDelayText)}.`;
   }
 
   return "Based on information that we have received from the manufacturer, there is not yet a confirmed ship date for this item.";
@@ -199,20 +204,6 @@ function buildDynamicGlobalDateTable(globalShipDate) {
     '<div style="padding:0px;width:80%;text-align:center;margin:0 auto;">',
     '<p style="margin:0; color:#111827; font-size:16px; line-height:20px;">Based on information that we have received from the manufacturer, the current Ship Date of your part(s) is:</p>',
     `<span style="font-weight:bold;font-family:Roboto, Helvetica, Arial, sans-serif;font-size:20px;letter-spacing:.75px;display:inline-block;width:100%;text-align:center;color:green;">${escapeHtml(globalShipDate)}</span>`,
-    "</div>",
-    "</td>",
-    "</tr>",
-    "</table>",
-  ].join("");
-}
-
-function buildDynamicBusinessDaysTable() {
-  return [
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0px 0 16px 0;">',
-    "<tr>",
-    '<td style="padding:0; text-align:center;">',
-    '<div style="padding:0px;width:80%;text-align:center;margin:0 auto;">',
-    '<p style="margin:0; color:#111827; font-size:16px; line-height:20px;">Based on information that we have received from the manufacturer, the current ship date of your part(s) is 12-15 business days.</p>',
     "</div>",
     "</td>",
     "</tr>",

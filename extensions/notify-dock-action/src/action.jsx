@@ -5,7 +5,6 @@ import {
   BlockStack,
   Box,
   Button,
-  Checkbox,
   DateField,
   DatePicker,
   Divider,
@@ -20,9 +19,11 @@ import {
 } from "@shopify/ui-extensions-react/admin";
 import {useEffect, useState} from "react";
 import {
+  BUSINESS_DAYS_RANGE_DELAY_STATE,
   canSendComposer,
   DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE,
   EMAIL_TYPES,
+  SPECIFIC_DATE_DELAY_STATE,
   useComposerState,
 } from "./composer.jsx";
 
@@ -374,15 +375,22 @@ function ActionComposer() {
                 setDynamicDelayDetails((current) =>
                   updateDynamicDelayDetail(current, sku, {
                     delayDate: value,
-                    delayState: value ? "specific_date" : "",
+                    delayRangeEnd: "",
+                    delayRangeStart: "",
+                    delayState: value ? SPECIFIC_DATE_DELAY_STATE : "",
                   }),
                 );
               }}
-              onDynamicDelayStateChange={(sku, value) => {
+              onDynamicDelayRangeChange={(sku, value) => {
                 setDynamicDelayDetails((current) =>
                   updateDynamicDelayDetail(current, sku, {
                     delayDate: "",
-                    delayState: value ? "business_days_12_15" : "",
+                    delayRangeEnd: value.end,
+                    delayRangeStart: value.start,
+                    delayState:
+                      value.start && value.end
+                        ? BUSINESS_DAYS_RANGE_DELAY_STATE
+                        : "",
                   }),
                 );
               }}
@@ -577,7 +585,7 @@ function ProductPreviewList({
   dynamicGlobalShipDate,
   emailType,
   onDynamicDelayDateChange,
-  onDynamicDelayStateChange,
+  onDynamicDelayRangeChange,
   onDynamicGlobalShipDateChange,
   products,
 }) {
@@ -586,44 +594,58 @@ function ProductPreviewList({
   );
   const globalDelayActive =
     isDynamicShippingDelay(emailType) && Boolean(dynamicGlobalShipDate);
-  const hasConfiguredPerItemDelay = dynamicDelayDetails.some(
-    (detail) => detail.delayState || detail.delayDate,
+  const hasConfiguredPerItemDelay = dynamicDelayDetails.some((detail) =>
+    detailHasDynamicDelay(detail),
   );
   const showDynamicGlobalSection =
     isDynamicShippingDelay(emailType) && hasResolvedDynamicProducts(products);
-  const [activeEditorSku, setActiveEditorSku] = useState("");
+  const [activeEditor, setActiveEditor] = useState(EMPTY_DYNAMIC_DELAY_EDITOR);
   const [draftDelayDate, setDraftDelayDate] = useState("");
+  const [draftDelayRange, setDraftDelayRange] = useState(EMPTY_DYNAMIC_DELAY_RANGE);
 
   useEffect(() => {
-    if (!activeEditorSku) {
+    if (!activeEditor.sku) {
       return;
     }
 
     if (globalDelayActive) {
-      setActiveEditorSku("");
+      setActiveEditor(EMPTY_DYNAMIC_DELAY_EDITOR);
       setDraftDelayDate("");
+      setDraftDelayRange(EMPTY_DYNAMIC_DELAY_RANGE);
       return;
     }
 
-    if (!products.some((product) => `${product?.sku || ""}`.trim() === activeEditorSku)) {
-      setActiveEditorSku("");
+    if (!products.some((product) => `${product?.sku || ""}`.trim() === activeEditor.sku)) {
+      setActiveEditor(EMPTY_DYNAMIC_DELAY_EDITOR);
       setDraftDelayDate("");
+      setDraftDelayRange(EMPTY_DYNAMIC_DELAY_RANGE);
     }
-  }, [activeEditorSku, globalDelayActive, products]);
+  }, [activeEditor.sku, globalDelayActive, products]);
 
-  function openDynamicDelayEditor(sku) {
+  function openDynamicDelayEditor(sku, mode) {
     const normalizedSku = `${sku || ""}`.trim();
     const detail = dynamicDelayLookup.get(normalizedSku) || EMPTY_DYNAMIC_DELAY_DETAIL;
 
-    setActiveEditorSku(normalizedSku);
+    setActiveEditor({
+      mode,
+      sku: normalizedSku,
+    });
     setDraftDelayDate(
-      detail.delayState === "specific_date" ? `${detail.delayDate || ""}`.trim() : "",
+      detail.delayState === SPECIFIC_DATE_DELAY_STATE
+        ? `${detail.delayDate || ""}`.trim()
+        : "",
+    );
+    setDraftDelayRange(
+      isBusinessDaysDynamicDelay(detail)
+        ? normalizeDynamicDelayRange(detail)
+        : EMPTY_DYNAMIC_DELAY_RANGE,
     );
   }
 
   function closeDynamicDelayEditor() {
-    setActiveEditorSku("");
+    setActiveEditor(EMPTY_DYNAMIC_DELAY_EDITOR);
     setDraftDelayDate("");
+    setDraftDelayRange(EMPTY_DYNAMIC_DELAY_RANGE);
   }
 
   return (
@@ -647,18 +669,30 @@ function ProductPreviewList({
           {showDynamicGlobalSection && index === 0 ? null : <Divider />}
           <Box padding="small">
             {isDynamicShippingDelay(emailType) &&
-            !product.isPlaceholder &&
-            `${product.sku || ""}`.trim() === activeEditorSku ? (
-              <DynamicDelayEditorCard
-                delayDate={draftDelayDate}
-                onDelayDateChange={(value) => {
-                  setDraftDelayDate(value);
-                  onDynamicDelayDateChange(product.sku, value);
-                  closeDynamicDelayEditor();
-                }}
-              />
-            ) : (
-              <BlockStack gap="small">
+             !product.isPlaceholder &&
+             `${product.sku || ""}`.trim() === activeEditor.sku ? (
+               <DynamicDelayEditorCard
+                 delayRange={draftDelayRange}
+                 delayDate={draftDelayDate}
+                 mode={activeEditor.mode}
+                 onDelayDateChange={(value) => {
+                   setDraftDelayDate(value);
+                   onDynamicDelayDateChange(product.sku, value);
+                   closeDynamicDelayEditor();
+                 }}
+                 onDelayRangeChange={(value) => {
+                   const normalizedValue = normalizeDynamicDelayRange(value);
+
+                   setDraftDelayRange(normalizedValue);
+
+                   if (normalizedValue.start && normalizedValue.end) {
+                     onDynamicDelayRangeChange(product.sku, normalizedValue);
+                     closeDynamicDelayEditor();
+                   }
+                 }}
+               />
+             ) : (
+               <BlockStack gap="small">
                 <InlineStack blockAlignment="start" gap="small" inlineAlignment="start">
                   <Box
                     blockSize={50}
@@ -695,11 +729,17 @@ function ProductPreviewList({
                   <DynamicDelaySummary
                     detail={dynamicDelayLookup.get(product.sku) || EMPTY_DYNAMIC_DELAY_DETAIL}
                     disabled={globalDelayActive}
-                    onBuiltToOrderChange={(value) => {
-                      onDynamicDelayStateChange(product.sku, value);
+                    onBuiltToOrderEdit={() => {
+                      openDynamicDelayEditor(
+                        product.sku || `${index}`,
+                        BUILT_TO_ORDER_EDITOR_MODE,
+                      );
                     }}
-                    onEdit={() => {
-                      openDynamicDelayEditor(product.sku || `${index}`);
+                    onShipDateEdit={() => {
+                      openDynamicDelayEditor(
+                        product.sku || `${index}`,
+                        ITEM_SHIP_DATE_EDITOR_MODE,
+                      );
                     }}
                   />
                 ) : null}
@@ -717,60 +757,93 @@ function ProductPreviewList({
 function DynamicDelaySummary({
   detail,
   disabled,
-  onBuiltToOrderChange,
-  onEdit,
+  onBuiltToOrderEdit,
+  onShipDateEdit,
 }) {
-  const usesBusinessDaysDelay = detail.delayState === "business_days_12_15";
-
   return (
     <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
       <Pressable
-        accessibilityLabel={buildDynamicDelaySummaryLabel(detail)}
-        onPress={disabled ? undefined : onEdit}
+        accessibilityLabel={buildDynamicDelayShipDateSummaryLabel(detail)}
+        onPress={disabled ? undefined : onShipDateEdit}
       >
         <Badge size="small-100">
-          {buildDynamicDelaySummaryLabel(detail)}
+          {buildDynamicDelayShipDateSummaryLabel(detail)}
         </Badge>
       </Pressable>
 
-      <Box inlineSize={100} minInlineSize={100} />
-
-      <Checkbox
-        checked={usesBusinessDaysDelay}
-        disabled={disabled}
-        label="Built to Order 12-15 Day Delay"
-        onChange={onBuiltToOrderChange}
-      />
+      <Pressable
+        accessibilityLabel={buildDynamicDelayBuiltToOrderSummaryLabel(detail)}
+        onPress={disabled ? undefined : onBuiltToOrderEdit}
+      >
+        <Badge size="small-100">
+          {buildDynamicDelayBuiltToOrderSummaryLabel(detail)}
+        </Badge>
+      </Pressable>
     </InlineStack>
   );
 }
 
 function DynamicDelayEditorCard({
+  delayRange,
   delayDate,
+  mode,
   onDelayDateChange,
+  onDelayRangeChange,
 }) {
   return (
-    <Box inlineSize={210} maxInlineSize={210} minInlineSize={210}>
-      <DatePicker
-        selected={delayDate || undefined}
-        onChange={(value) => {
-          if (typeof value !== "string") {
-            return;
-          }
+    <BlockStack gap="small">
+      <Text>
+        {mode === BUILT_TO_ORDER_EDITOR_MODE
+          ? "Select built-to-order date range"
+          : "Select item ship date"}
+      </Text>
 
-          onDelayDateChange(value);
-        }}
-      />
-    </Box>
+      <Box inlineSize={210} maxInlineSize={210} minInlineSize={210}>
+        <DatePicker
+          selected={
+            mode === BUILT_TO_ORDER_EDITOR_MODE
+              ? buildDatePickerRangeSelection(delayRange)
+              : delayDate || undefined
+          }
+          onChange={(value) => {
+            if (mode === BUILT_TO_ORDER_EDITOR_MODE) {
+              if (!value || Array.isArray(value) || typeof value === "string") {
+                return;
+              }
+
+              onDelayRangeChange(value);
+              return;
+            }
+
+            if (typeof value !== "string") {
+              return;
+            }
+
+            onDelayDateChange(value);
+          }}
+        />
+      </Box>
+    </BlockStack>
   );
 }
 
-function buildDynamicDelaySummaryLabel(detail) {
-  if (`${detail.delayDate || ""}`.trim()) {
+function buildDynamicDelayShipDateSummaryLabel(detail) {
+  if (
+    detail.delayState === SPECIFIC_DATE_DELAY_STATE &&
+    `${detail.delayDate || ""}`.trim()
+  ) {
     return detail.delayDate;
   }
 
-  return "Set Item Date";
+  return "Set Item Ship Date";
+}
+
+function buildDynamicDelayBuiltToOrderSummaryLabel(detail) {
+  if (isBusinessDaysDynamicDelay(detail) && detail.delayRangeStart && detail.delayRangeEnd) {
+    return `Built to Order ${formatDynamicDelayRangeLabel(detail)}`;
+  }
+
+  return "Built to Order";
 }
 
 function sanitizeFieldToken(value) {
@@ -988,11 +1061,75 @@ function buildRenderedPreviewPayload({
 
 const EMPTY_DYNAMIC_DELAY_DETAIL = {
   delayDate: "",
+  delayRangeEnd: "",
+  delayRangeStart: "",
   delayState: "",
 };
+const EMPTY_DYNAMIC_DELAY_RANGE = {
+  end: "",
+  start: "",
+};
+const EMPTY_DYNAMIC_DELAY_EDITOR = {
+  mode: "",
+  sku: "",
+};
+const ITEM_SHIP_DATE_EDITOR_MODE = "item_ship_date";
+const BUILT_TO_ORDER_EDITOR_MODE = "built_to_order";
 
 function isDynamicShippingDelay(emailType) {
   return emailType === DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE;
+}
+
+function buildDatePickerRangeSelection(value) {
+  const normalizedRange = normalizeDynamicDelayRange(value);
+
+  return normalizedRange.start || normalizedRange.end ? normalizedRange : {};
+}
+
+function detailHasDynamicDelay(detail) {
+  return Boolean(
+    `${detail?.delayDate || ""}`.trim() ||
+      `${detail?.delayRangeStart || ""}`.trim() ||
+      `${detail?.delayRangeEnd || ""}`.trim() ||
+      `${detail?.delayState || ""}`.trim(),
+  );
+}
+
+function formatCompactDelayDate(value) {
+  const [year, month, day] = `${value || ""}`.trim().split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return `${value || ""}`.trim();
+  }
+
+  return `${month}/${day}`;
+}
+
+function formatDynamicDelayRangeLabel(detail) {
+  const startLabel = formatCompactDelayDate(detail.delayRangeStart);
+  const endLabel = formatCompactDelayDate(detail.delayRangeEnd);
+
+  if (startLabel && endLabel) {
+    return `${startLabel}-${endLabel}`;
+  }
+
+  return startLabel || endLabel || "";
+}
+
+function isBusinessDaysDynamicDelay(detail) {
+  const delayState = `${detail?.delayState || ""}`.trim();
+
+  return (
+    delayState === BUSINESS_DAYS_RANGE_DELAY_STATE ||
+    delayState === "business_days_12_15"
+  );
+}
+
+function normalizeDynamicDelayRange(value) {
+  return {
+    end: `${value?.end || ""}`.trim(),
+    start: `${value?.start || ""}`.trim(),
+  };
 }
 
 function synchronizeDynamicDelayDetails(currentDetails, products) {
@@ -1006,6 +1143,8 @@ function synchronizeDynamicDelayDetails(currentDetails, products) {
 
     return {
       delayDate: `${currentDetail?.delayDate || ""}`.trim(),
+      delayRangeEnd: `${currentDetail?.delayRangeEnd || ""}`.trim(),
+      delayRangeStart: `${currentDetail?.delayRangeStart || ""}`.trim(),
       delayState: `${currentDetail?.delayState || ""}`.trim(),
       sku,
     };
@@ -1035,6 +1174,8 @@ function decoratePreviewProducts({dynamicDelayDetails, emailType, products}) {
       `${detail?.sku || ""}`.trim(),
       {
         delayDate: `${detail?.delayDate || ""}`.trim(),
+        delayRangeEnd: `${detail?.delayRangeEnd || ""}`.trim(),
+        delayRangeStart: `${detail?.delayRangeStart || ""}`.trim(),
         delayState: `${detail?.delayState || ""}`.trim(),
       },
     ]),
@@ -1050,6 +1191,8 @@ function decoratePreviewProducts({dynamicDelayDetails, emailType, products}) {
     return {
       ...product,
       delayDate: detail.delayDate,
+      delayRangeEnd: detail.delayRangeEnd,
+      delayRangeStart: detail.delayRangeStart,
       delayState: detail.delayState,
     };
   });

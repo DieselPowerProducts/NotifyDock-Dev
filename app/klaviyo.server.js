@@ -2,6 +2,7 @@ import {
   buildNotifyDockMessage,
   buildDynamicShippingDelayDetailsHtml,
 } from "./notify-dock-email-template.server";
+import {BUSINESS_DAYS_RANGE_DELAY_STATE} from "./dynamic-delay";
 import {formatNotifyDockShipDate} from "./ship-date";
 
 const KLAVIYO_API_URL = "https://a.klaviyo.com/api/events/";
@@ -131,6 +132,8 @@ export async function sendNotifyDockEvent({
             product_variant_title: productVariantTitle,
             products: normalizedProducts.map((product) => ({
               delay_date: product.delayDate,
+              delay_range_end: product.delayRangeEnd,
+              delay_range_start: product.delayRangeStart,
               delay_state: product.delayState,
               product_image_alt: product.productImageAlt,
               product_image_url: product.productImageUrl,
@@ -274,6 +277,8 @@ export async function renderNotifyDockTemplate({
               product_variant_title: normalizedProducts[0]?.productVariantTitle || "",
               products: normalizedProducts.map((product) => ({
                 delay_date: product.delayDate,
+                delay_range_end: product.delayRangeEnd,
+                delay_range_start: product.delayRangeStart,
                 delay_state: product.delayState,
                 product_image_alt: product.productImageAlt,
                 product_image_url: product.productImageUrl,
@@ -580,6 +585,10 @@ function normalizeRenderProduct(product) {
   return {
     delayDate:
       `${product?.delay_date || product?.delayDate || ""}`.trim(),
+    delayRangeEnd:
+      `${product?.delay_range_end || product?.delayRangeEnd || ""}`.trim(),
+    delayRangeStart:
+      `${product?.delay_range_start || product?.delayRangeStart || ""}`.trim(),
     delayState:
       `${product?.delay_state || product?.delayState || ""}`.trim(),
     productImageAlt:
@@ -596,13 +605,28 @@ function normalizeRenderProduct(product) {
 function normalizeKlaviyoProduct(product) {
   return {
     delayDate: `${product?.delayDate || ""}`.trim(),
-    delayState: `${product?.delayState || ""}`.trim(),
+    delayRangeEnd: `${product?.delayRangeEnd || ""}`.trim(),
+    delayRangeStart: `${product?.delayRangeStart || ""}`.trim(),
+    delayState: normalizeKlaviyoDelayState(product),
     productImageAlt: `${product?.productImageAlt || ""}`.trim(),
     productImageUrl: `${product?.productImageUrl || ""}`.trim(),
     productTitle: `${product?.productTitle || ""}`.trim(),
     productVariantTitle: `${product?.productVariantTitle || ""}`.trim(),
     sku: `${product?.sku || ""}`.trim(),
   };
+}
+
+function normalizeKlaviyoDelayState(product) {
+  const delayState = `${product?.delayState || ""}`.trim();
+
+  if (
+    delayState === "business_days_12_15" &&
+    (`${product?.delayRangeStart || ""}`.trim() || `${product?.delayRangeEnd || ""}`.trim())
+  ) {
+    return BUSINESS_DAYS_RANGE_DELAY_STATE;
+  }
+
+  return delayState;
 }
 
 function buildIsoStringFromTimestamp(timestamp) {

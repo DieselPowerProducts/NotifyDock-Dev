@@ -2,6 +2,8 @@ import {useEffect, useState} from "react";
 import {useApi} from "@shopify/ui-extensions-react/admin";
 
 export const DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE = "dynamic_shipping_delay";
+export const SPECIFIC_DATE_DELAY_STATE = "specific_date";
+export const BUSINESS_DAYS_RANGE_DELAY_STATE = "business_days_range";
 
 export const EMAIL_TYPES = [
   {label: "Shipping Delay", value: DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE},
@@ -660,6 +662,8 @@ function normalizeFetchedProduct(product) {
 function serializeProductPayload(product) {
   return {
     delay_date: product.delayDate || "",
+    delay_range_end: product.delayRangeEnd || "",
+    delay_range_start: product.delayRangeStart || "",
     delay_state: product.delayState || "",
     product_image_alt: product.productImageAlt || "",
     product_image_url: product.productImageUrl || "",
@@ -716,6 +720,8 @@ function attachDynamicDelayDetails({delayDetails, emailType, products}) {
         `${detail?.sku || ""}`.trim(),
         {
           delayDate: `${detail?.delayDate || ""}`.trim(),
+          delayRangeEnd: `${detail?.delayRangeEnd || ""}`.trim(),
+          delayRangeStart: `${detail?.delayRangeStart || ""}`.trim(),
           delayState: `${detail?.delayState || ""}`.trim(),
         },
       ])
@@ -733,6 +739,8 @@ function attachDynamicDelayDetails({delayDetails, emailType, products}) {
     return {
       ...product,
       delayDate: detail.delayDate,
+      delayRangeEnd: detail.delayRangeEnd,
+      delayRangeStart: detail.delayRangeStart,
       delayState: detail.delayState,
     };
   });

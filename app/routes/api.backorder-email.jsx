@@ -1,4 +1,9 @@
 import {json} from "@remix-run/node";
+import {
+  isBusinessDaysDelayState,
+  LEGACY_BUSINESS_DAYS_DELAY_STATE,
+  SPECIFIC_DATE_DELAY_STATE,
+} from "../dynamic-delay";
 import {recordEmailHistory} from "../email-history.server";
 import {buildNotifyDockMessage} from "../notify-dock-email-template.server";
 import {captureNotifyDockRenderedSnapshot, sendNotifyDockEvent} from "../klaviyo.server";
@@ -272,8 +277,26 @@ function isDynamicShippingDelayConfigured({globalShipDate, products}) {
 
   return products.every((product) => {
     const delayState = `${product?.delayState || ""}`.trim();
+    const delayRangeStart = `${product?.delayRangeStart || ""}`.trim();
+    const delayRangeEnd = `${product?.delayRangeEnd || ""}`.trim();
 
-    return delayState !== "specific_date" || Boolean(`${product?.delayDate || ""}`.trim());
+    if (delayState === SPECIFIC_DATE_DELAY_STATE) {
+      return Boolean(`${product?.delayDate || ""}`.trim());
+    }
+
+    if (!isBusinessDaysDelayState(delayState)) {
+      return true;
+    }
+
+    if (
+      delayState === LEGACY_BUSINESS_DAYS_DELAY_STATE &&
+      !delayRangeStart &&
+      !delayRangeEnd
+    ) {
+      return true;
+    }
+
+    return Boolean(delayRangeStart && delayRangeEnd);
   });
 }
 
@@ -315,6 +338,10 @@ function normalizeProduct(product) {
 
   return {
     delayDate: `${product?.delay_date || product?.delayDate || ""}`.trim(),
+    delayRangeEnd:
+      `${product?.delay_range_end || product?.delayRangeEnd || ""}`.trim(),
+    delayRangeStart:
+      `${product?.delay_range_start || product?.delayRangeStart || ""}`.trim(),
     delayState: `${product?.delay_state || product?.delayState || ""}`.trim(),
     productImageAlt:
       `${product?.product_image_alt || product?.productImageAlt || ""}`.trim(),
