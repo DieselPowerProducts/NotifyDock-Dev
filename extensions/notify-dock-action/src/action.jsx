@@ -459,8 +459,8 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
               <Badge>{buildHistorySummary(entry)}</Badge>
             </InlineStack>
 
-            <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
-              <Box>
+            <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+              <Box inlineSize={88} minInlineSize={88}>
                 <HistoryPreviewButton entry={entry} />
               </Box>
               {sentByLabel ? (
