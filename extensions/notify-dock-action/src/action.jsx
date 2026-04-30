@@ -439,6 +439,8 @@ function EmailHistoryList({history}) {
 }
 
 function HistoryTimelineItem({entry, isFirst, isLast}) {
+  const sentByLabel = buildSentByLabel(entry.sentByEmail);
+
   return (
     <BlockStack gap="none">
       {!isFirst ? (
@@ -457,26 +459,21 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
               <Badge>{buildHistorySummary(entry)}</Badge>
             </InlineStack>
 
-            {buildSentByLabel(entry.sentByEmail) ? (
-              <Text>{buildSentByLabel(entry.sentByEmail)}</Text>
-            ) : null}
+            <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
+              {sentByLabel ? <Text>{sentByLabel}</Text> : null}
+              {sentByLabel ? <Text>-</Text> : null}
+              <HistoryPreviewButton entry={entry} />
+            </InlineStack>
           </BlockStack>
         </Box>
       </InlineStack>
 
-      <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
-        {!isLast ? (
+      {!isLast ? (
+        <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
           <HistoryTimelineConnector alignment="start" />
-        ) : (
-          <HistoryTimelineSpacer />
-        )}
-
-        <Box paddingBlockEnd="base">
-          <InlineStack inlineAlignment="start">
-            <HistoryPreviewButton entry={entry} />
-          </InlineStack>
-        </Box>
-      </InlineStack>
+          <Box paddingBlockEnd="base" />
+        </InlineStack>
+      ) : null}
     </BlockStack>
   );
 }
@@ -496,16 +493,6 @@ function HistoryTimelineDot() {
     <Box inlineSize={20} minInlineSize={20}>
       <InlineStack inlineAlignment="center">
         <Text>●</Text>
-      </InlineStack>
-    </Box>
-  );
-}
-
-function HistoryTimelineSpacer() {
-  return (
-    <Box inlineSize={20} minInlineSize={20}>
-      <InlineStack inlineAlignment="center">
-        <Text> </Text>
       </InlineStack>
     </Box>
   );
