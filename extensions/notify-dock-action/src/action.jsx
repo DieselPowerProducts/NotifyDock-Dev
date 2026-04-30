@@ -460,13 +460,10 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
             </InlineStack>
 
             <InlineStack blockAlignment="center" gap="small" inlineAlignment="start">
-              {sentByLabel ? (
-                <Box minInlineSize={220}>
-                  <Text>{sentByLabel}</Text>
-                </Box>
-              ) : null}
-              {sentByLabel ? <Text>-</Text> : null}
               <HistoryPreviewButton entry={entry} />
+              {sentByLabel ? (
+                <Text>{sentByLabel}</Text>
+              ) : null}
             </InlineStack>
           </BlockStack>
         </Box>
