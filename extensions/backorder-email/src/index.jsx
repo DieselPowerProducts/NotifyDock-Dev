@@ -190,9 +190,15 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
         <HistoryTimelineDot />
 
         <Box paddingBlockEnd="small">
-          <InlineStack inlineAlignment="start">
-            <Badge>{buildHistorySummary(entry)}</Badge>
-          </InlineStack>
+          <BlockStack gap="small">
+            <InlineStack inlineAlignment="start">
+              <Badge>{buildHistorySummary(entry)}</Badge>
+            </InlineStack>
+
+            {buildSentByLabel(entry.sentByEmail) ? (
+              <Text>{buildSentByLabel(entry.sentByEmail)}</Text>
+            ) : null}
+          </BlockStack>
         </Box>
       </InlineStack>
 
@@ -262,7 +268,6 @@ function buildHistorySummary(entry) {
     `${labelEmailType(entry.emailType)} Sent`,
     formatHistoryTimestamp(entry.sentAt),
     `To: ${entry.customerEmail}`,
-    buildSentByLabel(entry.sentByEmail),
   ].filter(Boolean).join(" | ");
 }
 
