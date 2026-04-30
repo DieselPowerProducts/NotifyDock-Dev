@@ -118,6 +118,7 @@ export async function action({request}) {
 
   try {
     const sentAt = new Date();
+    const sentByEmail = getCurrentUserEmail(session);
     const result = await sendNotifyDockEvent({
       customerEmail,
       emailType,
@@ -131,7 +132,7 @@ export async function action({request}) {
       productVariantTitle: primaryProduct?.productVariantTitle || "",
       globalShipDate,
       products: resolvedProducts,
-      sentByEmail: session.email || "",
+      sentByEmail,
       shipDate,
       shop: shopName || session.shop,
       sku: resolvedSkuValue,
@@ -160,7 +161,7 @@ export async function action({request}) {
         orderId,
         orderNumber,
         sentAt,
-        sentByEmail: session.email || "",
+        sentByEmail,
         shop: session.shop,
         sku: resolvedSkuValue,
         subject,
@@ -196,6 +197,17 @@ export async function action({request}) {
       ),
     );
   }
+}
+
+function getCurrentUserEmail(session) {
+  const email =
+    `${session?.onlineAccessInfo?.associated_user?.email || ""}`.trim();
+
+  if (email && email !== "null" && email !== "undefined") {
+    return email;
+  }
+
+  return "";
 }
 
 function buildSubject({emailType, orderNumber}) {

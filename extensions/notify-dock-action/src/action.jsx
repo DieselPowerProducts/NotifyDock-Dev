@@ -902,7 +902,29 @@ function labelEmailType(emailType) {
 }
 
 function buildHistorySummary(entry) {
-  return `${labelEmailType(entry.emailType)} Sent | ${formatHistoryTimestamp(entry.sentAt)} - To: ${entry.customerEmail}`;
+  return [
+    `${labelEmailType(entry.emailType)} Sent`,
+    formatHistoryTimestamp(entry.sentAt),
+    `To: ${entry.customerEmail}`,
+    buildSentByLabel(entry.sentByEmail),
+  ].filter(Boolean).join(" | ");
+}
+
+function buildSentByLabel(sentByEmail) {
+  const name = buildSentByName(sentByEmail);
+
+  return name ? `Sent by ${name}` : "";
+}
+
+function buildSentByName(sentByEmail) {
+  const localPart = `${sentByEmail || ""}`.trim().split("@")[0] || "";
+
+  return localPart
+    .split(/[._-]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function formatHistoryCount(count, hasMore) {
