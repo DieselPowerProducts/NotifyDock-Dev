@@ -8,6 +8,22 @@ import {formatNotifyDockShipDate} from "./ship-date";
 const KLAVIYO_API_URL = "https://a.klaviyo.com/api/events/";
 const KLAVIYO_TEMPLATE_RENDER_URL = "https://a.klaviyo.com/api/template-render";
 const KLAVIYO_API_REVISION = process.env.KLAVIYO_API_REVISION || "2024-07-15";
+const KLAVIYO_MAX_ATTEMPTS = 3;
+const KLAVIYO_RETRY_DELAYS_MS = [500, 1500];
+const RETRYABLE_KLAVIYO_STATUSES = new Set([
+  408,
+  425,
+  429,
+  500,
+  502,
+  503,
+  504,
+  522,
+  523,
+  524,
+]);
+const KLAVIYO_TEMPORARY_ERROR_MESSAGE =
+  "Klaviyo is temporarily unavailable, so Notify Dock could not confirm this email was handed off. Please wait a few minutes and try sending it again.";
 
 const TEMPLATE_IDS = {
   backorder_notice:
@@ -174,7 +190,7 @@ export async function sendNotifyDockEvent({
     },
   });
 
-  const response = await fetch(KLAVIYO_API_URL, {
+  const response = await fetchKlaviyoWithRetry(KLAVIYO_API_URL, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -192,12 +208,10 @@ export async function sendNotifyDockEvent({
     };
   }
 
-  const errorText = await response.text();
-  const error = new Error(
-    errorText || "Klaviyo rejected the event request from Notify Dock.",
+  await throwKlaviyoResponseError(
+    response,
+    "Klaviyo rejected the event request from Notify Dock.",
   );
-  error.status = response.status;
-  throw error;
 }
 
 export async function listNotifyDockEventsForOrder({
@@ -482,7 +496,7 @@ async function fetchKlaviyoPayload(
     throw error;
   }
 
-  const response = await fetch(url, {
+  const response = await fetchKlaviyoWithRetry(url, {
     method,
     headers: {
       Accept: "application/vnd.api+json",
@@ -494,10 +508,10 @@ async function fetchKlaviyoPayload(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    const error = new Error(errorText || "Klaviyo rejected the history request.");
-    error.status = response.status;
-    throw error;
+    await throwKlaviyoResponseError(
+      response,
+      "Klaviyo rejected the history request.",
+    );
   }
 
   const payload = await response.json().catch(() => null);
@@ -509,6 +523,102 @@ async function fetchKlaviyoPayload(
   }
 
   return payload;
+}
+
+async function fetchKlaviyoWithRetry(url, options) {
+  for (let attempt = 0; attempt < KLAVIYO_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+
+      if (
+        !isRetryableKlaviyoStatus(response.status) ||
+        attempt === KLAVIYO_MAX_ATTEMPTS - 1
+      ) {
+        return response;
+      }
+    } catch (error) {
+      if (attempt === KLAVIYO_MAX_ATTEMPTS - 1) {
+        throw buildTemporaryKlaviyoError({cause: error});
+      }
+    }
+
+    await sleep(KLAVIYO_RETRY_DELAYS_MS[attempt] || 0);
+  }
+
+  throw buildTemporaryKlaviyoError();
+}
+
+async function throwKlaviyoResponseError(response, fallbackMessage) {
+  const errorText = await response.text();
+  const error = new Error(
+    buildKlaviyoErrorMessage({
+      errorText,
+      fallbackMessage,
+      status: response.status,
+    }),
+  );
+  error.status = response.status;
+  throw error;
+}
+
+function buildKlaviyoErrorMessage({errorText, fallbackMessage, status}) {
+  if (isRetryableKlaviyoStatus(status)) {
+    return KLAVIYO_TEMPORARY_ERROR_MESSAGE;
+  }
+
+  const klaviyoError = parseKlaviyoErrorText(errorText);
+
+  if (klaviyoError.retryable) {
+    return KLAVIYO_TEMPORARY_ERROR_MESSAGE;
+  }
+
+  return klaviyoError.message || fallbackMessage;
+}
+
+function parseKlaviyoErrorText(errorText) {
+  if (!errorText) {
+    return {
+      message: "",
+      retryable: false,
+    };
+  }
+
+  try {
+    const payload = JSON.parse(errorText);
+    const primaryError = Array.isArray(payload?.errors)
+      ? payload.errors[0]
+      : null;
+    const embeddedStatus = Number(primaryError?.status || payload?.status);
+    const detail =
+      `${primaryError?.detail || primaryError?.title || payload?.detail || ""}`.trim();
+
+    return {
+      message: detail,
+      retryable:
+        isRetryableKlaviyoStatus(embeddedStatus) ||
+        Boolean(payload?.cloudflare_error),
+    };
+  } catch (_error) {
+    return {
+      message: `${errorText}`.trim(),
+      retryable: false,
+    };
+  }
+}
+
+function buildTemporaryKlaviyoError({cause} = {}) {
+  const error = new Error(KLAVIYO_TEMPORARY_ERROR_MESSAGE);
+  error.status = 503;
+  error.cause = cause;
+  return error;
+}
+
+function isRetryableKlaviyoStatus(status) {
+  return RETRYABLE_KLAVIYO_STATUSES.has(status);
+}
+
+function sleep(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function groupIncludedByType(included = []) {
