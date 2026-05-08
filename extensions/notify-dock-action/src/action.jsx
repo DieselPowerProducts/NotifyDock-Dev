@@ -444,7 +444,6 @@ function EmailHistoryList({
           entry={entry}
           historyActionId={historyActionId}
           isFirst={index === 0}
-          isLast={index === history.length - 1}
           onCustomerEmailUpdate={onCustomerEmailUpdate}
           onResend={onResend}
         />
@@ -457,7 +456,6 @@ function HistoryTimelineItem({
   entry,
   historyActionId,
   isFirst,
-  isLast,
   onCustomerEmailUpdate,
   onResend,
 }) {
@@ -465,51 +463,34 @@ function HistoryTimelineItem({
   const isWorking = historyActionId === entry.id;
 
   return (
-    <BlockStack gap="none">
-      {!isFirst ? (
-        <InlineStack blockAlignment="end" gap="base" inlineAlignment="start">
-          <HistoryTimelineConnector alignment="end" />
-          <Box />
-        </InlineStack>
-      ) : null}
+    <BlockStack gap="base">
+      {!isFirst ? <Divider /> : null}
 
-      <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-        <HistoryTimelineDot />
+      <Box paddingBlock="base small">
+        <BlockStack gap="small">
+          <InlineStack inlineAlignment="start">
+            <Badge>{buildHistorySummary(entry)}</Badge>
+          </InlineStack>
 
-        <Box paddingBlockEnd="small">
-          <BlockStack gap="small">
-            <InlineStack inlineAlignment="start">
-              <Badge>{buildHistorySummary(entry)}</Badge>
-            </InlineStack>
-
-            <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
-              <Box inlineSize={88} minInlineSize={88}>
-                <HistoryPreviewButton entry={entry} />
+          <InlineStack blockAlignment="center" gap="base" inlineAlignment="start">
+            <Box inlineSize={88} minInlineSize={88}>
+              <HistoryPreviewButton entry={entry} />
+            </Box>
+            {sentByLabel ? (
+              <Box inlineSize={240} minInlineSize={240}>
+                <Text>{sentByLabel}</Text>
               </Box>
-              <Box inlineSize={330} minInlineSize={330}>
-                <HistoryRecipientEditor
-                  disabled={isWorking}
-                  entry={entry}
-                  onCustomerEmailUpdate={onCustomerEmailUpdate}
-                  onResend={onResend}
-                />
-              </Box>
-              {sentByLabel ? (
-                <Box inlineSize={240} minInlineSize={240}>
-                  <Text>{sentByLabel}</Text>
-                </Box>
-              ) : null}
-            </InlineStack>
-          </BlockStack>
-        </Box>
-      </InlineStack>
+            ) : null}
+          </InlineStack>
 
-      {!isLast ? (
-        <InlineStack blockAlignment="start" gap="base" inlineAlignment="start">
-          <HistoryTimelineConnector alignment="start" />
-          <Box paddingBlockEnd="base" />
-        </InlineStack>
-      ) : null}
+          <HistoryRecipientEditor
+            disabled={isWorking}
+            entry={entry}
+            onCustomerEmailUpdate={onCustomerEmailUpdate}
+            onResend={onResend}
+          />
+        </BlockStack>
+      </Box>
     </BlockStack>
   );
 }
@@ -552,8 +533,9 @@ function HistoryRecipientEditor({
     <InlineStack blockAlignment="end" gap="small" inlineAlignment="start">
       <Box inlineSize={220} minInlineSize={220}>
         <TextField
+          accessibilityLabel="Recipient email"
           disabled={disabled}
-          label="To"
+          label=""
           value={draftEmail}
           onBlur={saveDraft}
           onChange={setDraftEmail}
