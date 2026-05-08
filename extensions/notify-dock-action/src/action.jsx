@@ -466,7 +466,7 @@ function HistoryTimelineItem({
     <BlockStack gap="base">
       {!isFirst ? <Divider /> : null}
 
-      <Box paddingBlock="base small">
+      <Box paddingBlock="base base">
         <BlockStack gap="small">
           <InlineStack inlineAlignment="start">
             <Badge>{buildHistorySummary(entry)}</Badge>
