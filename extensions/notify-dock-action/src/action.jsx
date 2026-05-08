@@ -483,7 +483,7 @@ function HistoryTimelineItem({
             ) : null}
           </InlineStack>
 
-          <Box paddingBlockEnd="base">
+          <Box paddingBlockEnd="large">
             <HistoryRecipientEditor
               disabled={isWorking}
               entry={entry}
