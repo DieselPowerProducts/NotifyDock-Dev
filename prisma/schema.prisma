@@ -50,9 +50,16 @@ model NotifyDockEmailHistory {
   metricName    String?
   source        String   @default("app")
   sourceEventId String?  @unique
+  requestEventUniqueId String?
+  deliveryStatus String   @default("pending")
+  deliveryStatusReason String?
+  deliveryEventId String?
+  deliveryStatusAt DateTime?
+  deliveryCheckedAt DateTime?
   sentAt        DateTime @default(now())
   createdAt     DateTime @default(now())
 
   @@index([shop, orderId, sentAt(sort: Desc)])
   @@index([shop, customerEmail, sentAt(sort: Desc)])
+  @@index([shop, deliveryStatus, sentAt(sort: Desc)])
 }

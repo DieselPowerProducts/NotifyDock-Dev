@@ -160,6 +160,7 @@ export async function action({request}) {
         metricName: result.metricName,
         orderId,
         orderNumber,
+        requestEventUniqueId: result.requestEventUniqueId,
         sentAt,
         sentByEmail,
         shop: session.shop,

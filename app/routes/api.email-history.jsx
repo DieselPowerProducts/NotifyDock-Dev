@@ -4,6 +4,7 @@ import {
   getEmailHistoryById,
   listEmailHistory,
   recordEmailHistory,
+  refreshEmailHistoryDeliveryStatuses,
   serializeEmailHistory,
   updateEmailHistoryCustomerEmail,
 } from "../email-history.server";
@@ -49,6 +50,17 @@ export async function loader({request}) {
         warning =
           "Older Klaviyo activity could not be imported right now. New sends will still appear here.";
       }
+    }
+
+    try {
+      historyResult = {
+        ...historyResult,
+        history: await refreshEmailHistoryDeliveryStatuses(historyResult.history),
+      };
+    } catch (_error) {
+      warning =
+        warning ||
+        "Latest Klaviyo delivery statuses could not be refreshed right now.";
     }
 
     return cors(
@@ -203,6 +215,7 @@ async function resendHistoryEmail({customerEmail, id, sentByEmail, shop}) {
       metricName: result.metricName,
       orderId: resendPayload.orderId,
       orderNumber: resendPayload.orderNumber,
+      requestEventUniqueId: result.requestEventUniqueId,
       sentAt: new Date(),
       sentByEmail,
       shop,

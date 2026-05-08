@@ -51,6 +51,14 @@ const EMAIL_TYPE_BY_METRIC_NAME = Object.fromEntries(
   Object.entries(METRIC_NAMES).map(([emailType, metricName]) => [metricName, emailType]),
 );
 
+export const EMAIL_DELIVERY_METRIC_NAMES = {
+  bounced: "Bounced Email",
+  delivered: "Received Email",
+  dropped: "Dropped Email",
+  marked_spam: "Marked Email as Spam",
+  opened: "Opened Email",
+};
+
 export async function sendNotifyDockEvent({
   customerEmail,
   emailType,
@@ -106,6 +114,66 @@ export async function sendNotifyDockEvent({
     throw error;
   }
 
+  const requestEventUniqueId = crypto.randomUUID();
+  const body = JSON.stringify({
+    data: {
+      type: "event",
+      attributes: {
+        properties: {
+          email_type: emailType,
+          from_address: fromAddress,
+          global_ship_date: formattedGlobalShipDate,
+          delay_details_html: delayDetailsHtml,
+          delay_mode: delayMode,
+          message_html: message,
+          order_id: orderId,
+          order_number: orderNumber,
+          notify_dock_send_id: requestEventUniqueId,
+          product_image_url: productImageUrl,
+          product_title: productTitle,
+          product_variant_title: productVariantTitle,
+          products: normalizedProducts.map((product) => ({
+            delay_date: product.delayDate,
+            delay_range_end: product.delayRangeEnd,
+            delay_range_start: product.delayRangeStart,
+            delay_state: product.delayState,
+            product_image_alt: product.productImageAlt,
+            product_image_url: product.productImageUrl,
+            product_title: product.productTitle,
+            product_variant_title: product.productVariantTitle,
+            sku: product.sku,
+          })),
+          sent_by_email: sentByEmail,
+          ship_date:
+            emailType === "dynamic_shipping_delay"
+              ? formattedGlobalShipDate
+              : formattedShipDate,
+          shop,
+          sku,
+          subject,
+        },
+        metric: {
+          data: {
+            type: "metric",
+            attributes: {
+              name: metricName,
+            },
+          },
+        },
+        profile: {
+          data: {
+            type: "profile",
+            attributes: {
+              email: customerEmail,
+              ...(firstName ? {first_name: firstName} : {}),
+            },
+          },
+        },
+        unique_id: requestEventUniqueId,
+      },
+    },
+  });
+
   const response = await fetch(KLAVIYO_API_URL, {
     method: "POST",
     headers: {
@@ -114,68 +182,13 @@ export async function sendNotifyDockEvent({
       "Content-Type": "application/json",
       revision: KLAVIYO_API_REVISION,
     },
-    body: JSON.stringify({
-      data: {
-        type: "event",
-        attributes: {
-          properties: {
-            email_type: emailType,
-            from_address: fromAddress,
-            global_ship_date: formattedGlobalShipDate,
-            delay_details_html: delayDetailsHtml,
-            delay_mode: delayMode,
-            message_html: message,
-            order_id: orderId,
-            order_number: orderNumber,
-            product_image_url: productImageUrl,
-            product_title: productTitle,
-            product_variant_title: productVariantTitle,
-            products: normalizedProducts.map((product) => ({
-              delay_date: product.delayDate,
-              delay_range_end: product.delayRangeEnd,
-              delay_range_start: product.delayRangeStart,
-              delay_state: product.delayState,
-              product_image_alt: product.productImageAlt,
-              product_image_url: product.productImageUrl,
-              product_title: product.productTitle,
-              product_variant_title: product.productVariantTitle,
-              sku: product.sku,
-            })),
-            sent_by_email: sentByEmail,
-            ship_date:
-              emailType === "dynamic_shipping_delay"
-                ? formattedGlobalShipDate
-                : formattedShipDate,
-            shop,
-            sku,
-            subject,
-          },
-          metric: {
-            data: {
-              type: "metric",
-              attributes: {
-                name: metricName,
-              },
-            },
-          },
-          profile: {
-            data: {
-              type: "profile",
-              attributes: {
-                email: customerEmail,
-                ...(firstName ? {first_name: firstName} : {}),
-              },
-            },
-          },
-          unique_id: crypto.randomUUID(),
-        },
-      },
-    }),
+    body,
   });
 
   if (response.ok) {
     return {
       metricName,
+      requestEventUniqueId,
     };
   }
 
@@ -221,6 +234,33 @@ export async function listNotifyDockEventsForOrder({
 
       return `${event.eventProperties.order_number || ""}`.trim() === orderNumber;
     });
+}
+
+export async function listEmailDeliveryEventsForProfile({customerEmail}) {
+  const profileId = await getProfileIdByEmail(customerEmail);
+
+  if (!profileId) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    filter: `equals(profile_id,"${profileId}")`,
+    include: "metric,profile",
+    "fields[event]": "datetime,timestamp,event_properties",
+    "fields[metric]": "name",
+    "fields[profile]": "email",
+    "page[size]": "200",
+    sort: "-datetime",
+  });
+  const payload = await fetchKlaviyoJson(`/events/?${params.toString()}`, {
+    emptyMessage: "Klaviyo did not return email delivery events.",
+  });
+  const includedByType = groupIncludedByType(payload?.included);
+  const deliveryMetricNames = new Set(Object.values(EMAIL_DELIVERY_METRIC_NAMES));
+
+  return (payload?.data || [])
+    .map((event) => normalizeNotifyDockEvent(event, includedByType))
+    .filter((event) => deliveryMetricNames.has(event.metricName));
 }
 
 export async function renderNotifyDockTemplate({

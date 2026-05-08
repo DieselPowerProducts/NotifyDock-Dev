@@ -974,10 +974,34 @@ function labelEmailType(emailType) {
 
 function buildHistorySummary(entry) {
   return [
-    `${labelEmailType(entry.emailType)} Sent`,
+    `${labelEmailType(entry.emailType)} ${labelDeliveryStatus(entry.deliveryStatus)}`,
     formatHistoryTimestamp(entry.sentAt),
     `To: ${entry.customerEmail}`,
   ].filter(Boolean).join(" | ");
+}
+
+function labelDeliveryStatus(deliveryStatus) {
+  if (deliveryStatus === "delivered") {
+    return "Delivered";
+  }
+
+  if (deliveryStatus === "opened") {
+    return "Opened";
+  }
+
+  if (deliveryStatus === "bounced") {
+    return "Bounced";
+  }
+
+  if (deliveryStatus === "dropped") {
+    return "Dropped";
+  }
+
+  if (deliveryStatus === "marked_spam") {
+    return "Marked Spam";
+  }
+
+  return "Pending";
 }
 
 function buildSentByLabel(sentByEmail) {
