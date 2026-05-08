@@ -40,8 +40,11 @@ function ActionComposer() {
     firstName,
     fromAddress,
     fromOptions,
+    handleHistoryCustomerEmailUpdate,
+    handleHistoryResend,
     handleSend,
     history,
+    historyActionId,
     historyHasMore,
     historyExpanded,
     historyLoading,
@@ -56,6 +59,7 @@ function ActionComposer() {
     selectedHistoryId,
     sending,
     setEmailType,
+    setCustomerEmail,
     setFromAddress,
     setHistoryExpanded,
     setShipDate,
@@ -248,6 +252,9 @@ function ActionComposer() {
               <Box maxBlockSize={1000}>
                 <EmailHistoryList
                   history={history}
+                  historyActionId={historyActionId}
+                  onCustomerEmailUpdate={handleHistoryCustomerEmailUpdate}
+                  onResend={handleHistoryResend}
                 />
               </Box>
             ) : null}
@@ -298,9 +305,9 @@ function ActionComposer() {
         <InlineStack inlineAlignment="space-between">
           <Box inlineSize="48%">
             <TextField
-              disabled
               label="To"
               value={customerEmail}
+              onChange={setCustomerEmail}
             />
           </Box>
 
@@ -423,23 +430,39 @@ function ActionComposer() {
   );
 }
 
-function EmailHistoryList({history}) {
+function EmailHistoryList({
+  history,
+  historyActionId,
+  onCustomerEmailUpdate,
+  onResend,
+}) {
   return (
     <BlockStack gap="none">
       {history.map((entry, index) => (
         <HistoryTimelineItem
           key={entry.id}
           entry={entry}
+          historyActionId={historyActionId}
           isFirst={index === 0}
           isLast={index === history.length - 1}
+          onCustomerEmailUpdate={onCustomerEmailUpdate}
+          onResend={onResend}
         />
       ))}
     </BlockStack>
   );
 }
 
-function HistoryTimelineItem({entry, isFirst, isLast}) {
+function HistoryTimelineItem({
+  entry,
+  historyActionId,
+  isFirst,
+  isLast,
+  onCustomerEmailUpdate,
+  onResend,
+}) {
   const sentByLabel = buildSentByLabel(entry.sentByEmail);
+  const isWorking = historyActionId === entry.id;
 
   return (
     <BlockStack gap="none">
@@ -463,6 +486,14 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
               <Box inlineSize={88} minInlineSize={88}>
                 <HistoryPreviewButton entry={entry} />
               </Box>
+              <Box inlineSize={330} minInlineSize={330}>
+                <HistoryRecipientEditor
+                  disabled={isWorking}
+                  entry={entry}
+                  onCustomerEmailUpdate={onCustomerEmailUpdate}
+                  onResend={onResend}
+                />
+              </Box>
               {sentByLabel ? (
                 <Box inlineSize={240} minInlineSize={240}>
                   <Text>{sentByLabel}</Text>
@@ -480,6 +511,64 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
         </InlineStack>
       ) : null}
     </BlockStack>
+  );
+}
+
+function HistoryRecipientEditor({
+  disabled,
+  entry,
+  onCustomerEmailUpdate,
+  onResend,
+}) {
+  const [draftEmail, setDraftEmail] = useState(entry.customerEmail || "");
+
+  useEffect(() => {
+    setDraftEmail(entry.customerEmail || "");
+  }, [entry.customerEmail]);
+
+  async function saveDraft() {
+    const normalizedDraftEmail = `${draftEmail || ""}`.trim();
+
+    if (!normalizedDraftEmail || normalizedDraftEmail === entry.customerEmail) {
+      return normalizedDraftEmail;
+    }
+
+    const saved = await onCustomerEmailUpdate(entry.id, normalizedDraftEmail);
+
+    return saved ? normalizedDraftEmail : "";
+  }
+
+  async function resendDraft() {
+    const normalizedDraftEmail = `${draftEmail || ""}`.trim();
+
+    if (!normalizedDraftEmail) {
+      return;
+    }
+
+    await onResend(entry.id, normalizedDraftEmail);
+  }
+
+  return (
+    <InlineStack blockAlignment="end" gap="small" inlineAlignment="start">
+      <Box inlineSize={220} minInlineSize={220}>
+        <TextField
+          disabled={disabled}
+          label="To"
+          value={draftEmail}
+          onBlur={saveDraft}
+          onChange={setDraftEmail}
+        />
+      </Box>
+      <Box inlineSize={88} minInlineSize={88}>
+        <Button
+          disabled={disabled}
+          onPress={resendDraft}
+          variant="primary"
+        >
+          {disabled ? "Sending..." : "Resend"}
+        </Button>
+      </Box>
+    </InlineStack>
   );
 }
 

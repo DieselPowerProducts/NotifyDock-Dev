@@ -67,6 +67,7 @@ export function useComposerState(target) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyNotice, setHistoryNotice] = useState("");
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
+  const [historyActionId, setHistoryActionId] = useState("");
 
   useEffect(() => {
     setLoadingOrder(Boolean(orderId));
@@ -90,6 +91,7 @@ export function useComposerState(target) {
     setHistoryExpanded(shouldShowHistoryOnLaunch);
     setHistoryLoading(false);
     setHistoryNotice("");
+    setHistoryActionId("");
   }, [launchNonce, orderId, shouldShowHistoryOnLaunch]);
 
   useEffect(() => {
@@ -425,6 +427,95 @@ export function useComposerState(target) {
     }
   }
 
+  async function handleHistoryCustomerEmailUpdate(historyId, nextCustomerEmail) {
+    return runHistoryAction({
+      customerEmail: nextCustomerEmail,
+      historyId,
+      intent: "update_customer_email",
+      successMessage: "Saved email history recipient.",
+    });
+  }
+
+  async function handleHistoryResend(historyId, nextCustomerEmail) {
+    return runHistoryAction({
+      customerEmail: nextCustomerEmail,
+      historyId,
+      intent: "resend",
+      successMessage: "Klaviyo accepted the Notify Dock resend event.",
+    });
+  }
+
+  async function runHistoryAction({
+    customerEmail: nextCustomerEmail,
+    historyId,
+    intent,
+    successMessage,
+  }) {
+    const normalizedCustomerEmail = `${nextCustomerEmail || ""}`.trim();
+
+    if (!historyId || !normalizedCustomerEmail) {
+      setStatus({
+        tone: "critical",
+        message: "A saved email and recipient email are required.",
+      });
+      return false;
+    }
+
+    setHistoryActionId(historyId);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/email-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerEmail: normalizedCustomerEmail,
+          id: historyId,
+          intent,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error || "Notify Dock could not update email history.",
+        );
+      }
+
+      if (payload.historyEntry) {
+        setHistory((current) =>
+          current.map((entry) =>
+            entry.id === payload.historyEntry.id ? payload.historyEntry : entry,
+          ),
+        );
+      }
+
+      setStatus({
+        tone: "success",
+        message: payload.message || successMessage,
+      });
+
+      if (intent === "resend") {
+        setHistoryReloadToken((value) => value + 1);
+      }
+
+      return true;
+    } catch (error) {
+      setStatus({
+        tone: "critical",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Notify Dock could not update email history.",
+      });
+      return false;
+    } finally {
+      setHistoryActionId("");
+    }
+  }
+
   return {
     api,
     customerEmail,
@@ -437,6 +528,7 @@ export function useComposerState(target) {
     history,
     historyHasMore,
     historyExpanded,
+    historyActionId,
     historyLoading,
     historyNotice,
     launchMode,
@@ -456,7 +548,13 @@ export function useComposerState(target) {
       setStatus(null);
     },
     setFromAddress,
+    setCustomerEmail: (value) => {
+      setCustomerEmail(value);
+      setStatus(null);
+    },
     setHistoryExpanded,
+    handleHistoryCustomerEmailUpdate,
+    handleHistoryResend,
     setShipDate: (value) => {
       setShipDate(value);
       setStatus(null);

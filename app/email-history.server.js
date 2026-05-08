@@ -38,6 +38,24 @@ export async function getEmailHistoryById({id, shop}) {
   });
 }
 
+export async function updateEmailHistoryCustomerEmail({
+  customerEmail,
+  id,
+  shop,
+}) {
+  const historyModel = getHistoryModel();
+
+  return historyModel.updateMany({
+    where: {
+      id,
+      shop,
+    },
+    data: {
+      customerEmail,
+    },
+  });
+}
+
 export async function recordEmailHistory({
   customerEmail,
   emailType,
