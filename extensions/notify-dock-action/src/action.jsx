@@ -466,7 +466,7 @@ function HistoryTimelineItem({
     <BlockStack gap="base">
       {!isFirst ? <Divider /> : null}
 
-      <Box paddingBlock="base base">
+      <Box paddingBlockStart="base">
         <BlockStack gap="small">
           <InlineStack inlineAlignment="start">
             <Badge>{buildHistorySummary(entry)}</Badge>
@@ -483,12 +483,14 @@ function HistoryTimelineItem({
             ) : null}
           </InlineStack>
 
-          <HistoryRecipientEditor
-            disabled={isWorking}
-            entry={entry}
-            onCustomerEmailUpdate={onCustomerEmailUpdate}
-            onResend={onResend}
-          />
+          <Box paddingBlockEnd="base">
+            <HistoryRecipientEditor
+              disabled={isWorking}
+              entry={entry}
+              onCustomerEmailUpdate={onCustomerEmailUpdate}
+              onResend={onResend}
+            />
+          </Box>
         </BlockStack>
       </Box>
     </BlockStack>
