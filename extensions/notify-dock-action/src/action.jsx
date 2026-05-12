@@ -47,6 +47,7 @@ function ActionComposer() {
     historyActionId,
     historyHasMore,
     historyExpanded,
+    historyLoaded,
     historyLoading,
     historyNotice,
     launchMode,
@@ -233,39 +234,47 @@ function ActionComposer() {
       secondaryAction={<Button onPress={api.close}>Close</Button>}
     >
       <BlockStack gap="base">
-        {history.length ? (
-          <BlockStack gap="base">
-            <InlineStack inlineAlignment="start">
-              <Button
-                onPress={() => {
-                  setHistoryExpanded(!historyExpanded);
-                }}
-                variant="secondary"
-              >
-                {historyExpanded
-                  ? `Hide history (${formatHistoryCount(history.length, historyHasMore)})`
-                  : `View history (${formatHistoryCount(history.length, historyHasMore)})`}
-              </Button>
-            </InlineStack>
+        <BlockStack gap="base">
+          <InlineStack inlineAlignment="start">
+            <Button
+              disabled={loadingOrder || historyLoading}
+              onPress={() => {
+                setHistoryExpanded(!historyExpanded);
+              }}
+              variant="secondary"
+            >
+              {historyExpanded
+                ? `Hide history${
+                    historyLoaded && history.length
+                      ? ` (${formatHistoryCount(history.length, historyHasMore)})`
+                      : ""
+                  }`
+                : "View history"}
+            </Button>
+          </InlineStack>
 
-            {historyExpanded ? (
-              <Box maxBlockSize={1000}>
-                <EmailHistoryList
-                  history={history}
-                  historyActionId={historyActionId}
-                  onCustomerEmailUpdate={handleHistoryCustomerEmailUpdate}
-                  onResend={handleHistoryResend}
-                />
-              </Box>
-            ) : null}
-          </BlockStack>
-        ) : null}
+          {historyExpanded && history.length ? (
+            <Box maxBlockSize={1000}>
+              <EmailHistoryList
+                history={history}
+                historyActionId={historyActionId}
+                onCustomerEmailUpdate={handleHistoryCustomerEmailUpdate}
+                onResend={handleHistoryResend}
+              />
+            </Box>
+          ) : null}
+        </BlockStack>
 
         {historyLoading ? <Text>Loading email history...</Text> : null}
 
         {historyNotice ? <Text>{historyNotice}</Text> : null}
 
-        {!loadingOrder && !historyLoading && !history.length && !historyNotice ? (
+        {historyExpanded &&
+        historyLoaded &&
+        !loadingOrder &&
+        !historyLoading &&
+        !history.length &&
+        !historyNotice ? (
           <Text>No email history yet for this order.</Text>
         ) : null}
 
