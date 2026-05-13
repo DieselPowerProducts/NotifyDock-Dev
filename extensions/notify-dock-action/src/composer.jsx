@@ -64,7 +64,6 @@ export function useComposerState(target) {
   const [historyExpanded, setHistoryExpanded] = useState(
     shouldShowHistoryOnLaunch,
   );
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyNotice, setHistoryNotice] = useState("");
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
@@ -90,7 +89,6 @@ export function useComposerState(target) {
     setHistory([]);
     setHistoryHasMore(false);
     setHistoryExpanded(shouldShowHistoryOnLaunch);
-    setHistoryLoaded(false);
     setHistoryLoading(false);
     setHistoryNotice("");
     setHistoryActionId("");
@@ -279,7 +277,7 @@ export function useComposerState(target) {
     let cancelled = false;
 
     async function loadHistory() {
-      if (!historyExpanded || !orderId || loadingOrder) {
+      if (!orderId || loadingOrder) {
         return;
       }
 
@@ -314,13 +312,11 @@ export function useComposerState(target) {
 
         setHistory(Array.isArray(payload.history) ? payload.history : []);
         setHistoryHasMore(Boolean(payload.hasMore));
-        setHistoryLoaded(true);
         setHistoryNotice(`${payload.warning || ""}`.trim());
       } catch (historyError) {
         if (!cancelled) {
           setHistory([]);
           setHistoryHasMore(false);
-          setHistoryLoaded(true);
           setHistoryNotice(
             historyError instanceof Error
               ? historyError.message
@@ -339,14 +335,7 @@ export function useComposerState(target) {
     return () => {
       cancelled = true;
     };
-  }, [
-    customerEmail,
-    historyExpanded,
-    historyReloadToken,
-    loadingOrder,
-    orderId,
-    orderNumber,
-  ]);
+  }, [customerEmail, historyReloadToken, loadingOrder, orderId, orderNumber]);
 
   function resetComposer() {
     setSubjectDirty(false);
@@ -424,11 +413,7 @@ export function useComposerState(target) {
           payload.message ||
           "Klaviyo accepted the Notify Dock event for delivery.",
       });
-      if (historyExpanded) {
-        setHistoryReloadToken((value) => value + 1);
-      } else {
-        setHistoryLoaded(false);
-      }
+      setHistoryReloadToken((value) => value + 1);
     } catch (error) {
       setStatus({
         tone: "critical",
@@ -543,7 +528,6 @@ export function useComposerState(target) {
     history,
     historyHasMore,
     historyExpanded,
-    historyLoaded,
     historyActionId,
     historyLoading,
     historyNotice,
@@ -568,10 +552,7 @@ export function useComposerState(target) {
       setCustomerEmail(value);
       setStatus(null);
     },
-    setHistoryExpanded: (value) => {
-      setHistoryExpanded(value);
-      setHistoryNotice("");
-    },
+    setHistoryExpanded,
     handleHistoryCustomerEmailUpdate,
     handleHistoryResend,
     setShipDate: (value) => {
