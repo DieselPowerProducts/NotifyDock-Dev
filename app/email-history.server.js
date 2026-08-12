@@ -411,6 +411,10 @@ function buildDeliveryStatusReason(event) {
 }
 
 function buildFallbackSubject({emailType, orderNumber}) {
+  if (emailType === "awaiting_stock") {
+    return `Awaiting stock for order ${orderNumber}`.trim();
+  }
+
   if (emailType === "will_call_partially_ready") {
     return "Partial Will Call Order is Ready";
   }

@@ -2,11 +2,13 @@ import {useEffect, useState} from "react";
 import {useApi} from "@shopify/ui-extensions-react/admin";
 
 export const DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE = "dynamic_shipping_delay";
+export const AWAITING_STOCK_EMAIL_TYPE = "awaiting_stock";
 export const SPECIFIC_DATE_DELAY_STATE = "specific_date";
 export const BUSINESS_DAYS_RANGE_DELAY_STATE = "business_days_range";
 
 export const EMAIL_TYPES = [
   {label: "Shipping Delay", value: DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE},
+  {label: "Awaiting Stock", value: AWAITING_STOCK_EMAIL_TYPE},
   {label: "Will Call - In Progress", value: "will_call_in_progress"},
   {label: "Will Call - Partially Ready", value: "will_call_partially_ready"},
   {label: "Will Call - Ready", value: "will_call_ready"},
@@ -630,6 +632,10 @@ export function canSendComposer({
 }
 
 function buildSubject({emailType, orderNumber, shopName}) {
+  if (emailType === AWAITING_STOCK_EMAIL_TYPE) {
+    return `Awaiting stock for order ${orderNumber || "#"}`.trim();
+  }
+
   if (emailType === "will_call_partially_ready") {
     return "Partial Will Call Order is Ready";
   }
@@ -653,11 +659,16 @@ function buildSubject({emailType, orderNumber, shopName}) {
   }
 
 function requiresShipDate(emailType) {
-  return emailType === "backorder_notice" || emailType === "shipping_delay";
+  return [
+    AWAITING_STOCK_EMAIL_TYPE,
+    "backorder_notice",
+    "shipping_delay",
+  ].includes(emailType);
 }
 
 function requiresSku(emailType) {
   return ![
+    AWAITING_STOCK_EMAIL_TYPE,
     "will_call_ready",
     "will_call_in_progress",
   ].includes(emailType);

@@ -26,6 +26,14 @@ export function buildNotifyDockMessage({
     products: resolvedProducts,
   });
 
+  if (emailType === "awaiting_stock") {
+    return [
+      `<p>Hello ${escapeHtml(firstName || "there")},</p>`,
+      `<p>We expect additional stock for your order ${escapeHtml(orderNumber || "#")} on <strong>${escapeHtml(resolvedShipDate || "Insert expected stock date")}</strong>.</p>`,
+      "<p>Thank you.</p>",
+    ].join("");
+  }
+
   if (emailType === "will_call_partially_ready") {
     return [
       "<p><strong>Partial Will Call Order is Ready</strong></p>",

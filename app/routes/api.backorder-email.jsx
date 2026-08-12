@@ -10,6 +10,7 @@ import {captureNotifyDockRenderedSnapshot, sendNotifyDockEvent} from "../klaviyo
 import {authenticate} from "../shopify.server";
 
 const VALID_EMAIL_TYPES = new Set([
+  "awaiting_stock",
   "backorder_notice",
   "dynamic_shipping_delay",
   "shipping_delay",
@@ -212,6 +213,10 @@ function getCurrentUserEmail(session) {
 }
 
 function buildSubject({emailType, orderNumber}) {
+  if (emailType === "awaiting_stock") {
+    return `Awaiting stock for order ${orderNumber}`.trim();
+  }
+
   if (emailType === "will_call_partially_ready") {
     return "Partial Will Call Order is Ready";
   }
@@ -237,6 +242,7 @@ function buildSubject({emailType, orderNumber}) {
 
 function requiresSku(emailType) {
   return ![
+    "awaiting_stock",
     "will_call_ready",
     "will_call_in_progress",
   ].includes(emailType);
@@ -280,7 +286,11 @@ function isPayloadAllowed({
 }
 
 function requiresShipDate(emailType) {
-  return emailType === "backorder_notice" || emailType === "shipping_delay";
+  return [
+    "awaiting_stock",
+    "backorder_notice",
+    "shipping_delay",
+  ].includes(emailType);
 }
 
 function isDynamicShippingDelayConfigured({globalShipDate, products}) {

@@ -26,6 +26,8 @@ const KLAVIYO_TEMPORARY_ERROR_MESSAGE =
   "Klaviyo is temporarily unavailable, so Notify Dock could not confirm this email was handed off. Please wait a few minutes and try sending it again.";
 
 const TEMPLATE_IDS = {
+  awaiting_stock:
+    process.env.KLAVIYO_AWAITING_STOCK_TEMPLATE_ID || "VJhVCc",
   backorder_notice:
     process.env.KLAVIYO_BACKORDER_TEMPLATE_ID || "TGEPX6",
   dynamic_shipping_delay:
@@ -43,6 +45,9 @@ const TEMPLATE_IDS = {
 };
 
 export const METRIC_NAMES = {
+  awaiting_stock:
+    process.env.KLAVIYO_AWAITING_STOCK_METRIC_NAME ||
+    "Notify Dock Awaiting Stock Email Requested",
   backorder_notice:
     process.env.KLAVIYO_BACKORDER_METRIC_NAME ||
     "Notify Dock Backorder Email Requested",

@@ -19,6 +19,7 @@ import {
 } from "@shopify/ui-extensions-react/admin";
 import {useEffect, useState} from "react";
 import {
+  AWAITING_STOCK_EMAIL_TYPE,
   BUSINESS_DAYS_RANGE_DELAY_STATE,
   canSendComposer,
   DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE,
@@ -322,27 +323,33 @@ function ActionComposer() {
           </Box>
         </InlineStack>
 
-        <InlineStack inlineAlignment="space-between">
-          {!isDynamicShippingDelay(emailType) ? (
-            <Box inlineSize="48%">
-              <DateField
-                disabled={!showsShipDate(emailType)}
-                label="Ship date"
-                value={shipDate}
-                onChange={setShipDate}
-              />
-            </Box>
-          ) : null}
+        {showsShipDate(emailType) || showsSku(emailType) ? (
+          <InlineStack inlineAlignment="space-between">
+            {showsShipDate(emailType) ? (
+              <Box inlineSize={showsSku(emailType) ? "48%" : "100%"}>
+                <DateField
+                  label={
+                    emailType === AWAITING_STOCK_EMAIL_TYPE
+                      ? "Expected stock date"
+                      : "Ship date"
+                  }
+                  value={shipDate}
+                  onChange={setShipDate}
+                />
+              </Box>
+            ) : null}
 
-          <Box inlineSize={isDynamicShippingDelay(emailType) ? "100%" : "48%"}>
-            <TextField
-              disabled={!showsSku(emailType)}
-              label="SKU"
-              value={sku}
-              onChange={setSku}
-            />
-          </Box>
-        </InlineStack>
+            {showsSku(emailType) ? (
+              <Box inlineSize={showsShipDate(emailType) ? "48%" : "100%"}>
+                <TextField
+                  label="SKU"
+                  value={sku}
+                  onChange={setSku}
+                />
+              </Box>
+            ) : null}
+          </InlineStack>
+        ) : null}
 
         {showsSku(emailType) && orderSkuReferences.length ? (
           <InlineStack gap="small" inlineAlignment="start">
@@ -949,6 +956,10 @@ function EmailPreviewContent({entry}) {
 }
 
 function labelEmailType(emailType) {
+  if (emailType === AWAITING_STOCK_EMAIL_TYPE) {
+    return "Awaiting Stock";
+  }
+
   if (emailType === "will_call_partially_ready") {
     return "Will Call - Partially Ready";
   }
@@ -1126,11 +1137,16 @@ function appendSkuValue(currentValue, nextSku) {
 }
 
 function showsShipDate(emailType) {
-  return emailType === "backorder_notice" || emailType === "shipping_delay";
+  return [
+    AWAITING_STOCK_EMAIL_TYPE,
+    "backorder_notice",
+    "shipping_delay",
+  ].includes(emailType);
 }
 
 function showsSku(emailType) {
   return ![
+    AWAITING_STOCK_EMAIL_TYPE,
     "will_call_ready",
     "will_call_in_progress",
   ].includes(emailType);
