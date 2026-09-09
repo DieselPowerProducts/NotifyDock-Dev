@@ -5,7 +5,6 @@ import {
   BlockStack,
   Box,
   Button,
-  DateField,
   DatePicker,
   Divider,
   Image,
@@ -77,9 +76,36 @@ function ActionComposer() {
   const previewProducts = buildPreviewProducts(emailType, products, sku);
   const [dynamicGlobalShipDate, setDynamicGlobalShipDate] = useState("");
   const [dynamicDelayDetails, setDynamicDelayDetails] = useState([]);
-  const [renderedPreviewError, setRenderedPreviewError] = useState("");
-  const [renderedPreviewLoading, setRenderedPreviewLoading] = useState(false);
-  const [renderedPreviewHref, setRenderedPreviewHref] = useState("");
+  const [renderedPreview, setRenderedPreview] = useState({
+    payloadKey: "",
+    href: "",
+    error: "",
+  });
+  const previewPayloadKey = JSON.stringify(
+    buildRenderedPreviewPayload({
+      customerEmail,
+      emailType,
+      firstName,
+      globalShipDate: dynamicGlobalShipDate,
+      orderNumber,
+      products: decoratePreviewProducts({
+        dynamicDelayDetails,
+        emailType,
+        products,
+      }),
+      shipDate: resolveRenderedPreviewShipDate({
+        emailType,
+        globalShipDate: dynamicGlobalShipDate,
+        shipDate,
+      }),
+      sku,
+    }),
+  );
+  // Never expose a link for an older form state, including during the debounce.
+  const previewMatchesForm = renderedPreview.payloadKey === previewPayloadKey;
+  const renderedPreviewLoading = Boolean(emailType) && !previewMatchesForm;
+  const renderedPreviewHref = previewMatchesForm ? renderedPreview.href : "";
+  const renderedPreviewError = previewMatchesForm ? renderedPreview.error : "";
   const canSend =
     canSendComposer({
       customerEmail,
@@ -120,36 +146,13 @@ function ActionComposer() {
 
   useEffect(() => {
     let cancelled = false;
-    const payload = buildRenderedPreviewPayload({
-      customerEmail,
-      emailType,
-      firstName,
-      globalShipDate: dynamicGlobalShipDate,
-      orderNumber,
-      products: decoratePreviewProducts({
-        dynamicDelayDetails,
-        emailType,
-        products,
-      }),
-      shipDate: resolveRenderedPreviewShipDate({
-        emailType,
-        globalShipDate: dynamicGlobalShipDate,
-        shipDate,
-      }),
-      sku,
-    });
+    const payload = JSON.parse(previewPayloadKey);
 
     if (!payload.emailType) {
-      setRenderedPreviewError("");
-      setRenderedPreviewLoading(false);
-      setRenderedPreviewHref("");
       return;
     }
 
     const timeoutId = setTimeout(async () => {
-      setRenderedPreviewLoading(true);
-      setRenderedPreviewError("");
-
       try {
         const previewHref = await requestPreviewHref(payload);
 
@@ -157,22 +160,24 @@ function ActionComposer() {
           return;
         }
 
-        setRenderedPreviewHref(previewHref);
+        setRenderedPreview({
+          payloadKey: previewPayloadKey,
+          href: previewHref,
+          error: "",
+        });
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        setRenderedPreviewHref("");
-        setRenderedPreviewError(
-          error instanceof Error
-            ? error.message
-            : "Notify Dock could not prepare the rendered preview.",
-        );
-      } finally {
-        if (!cancelled) {
-          setRenderedPreviewLoading(false);
-        }
+        setRenderedPreview({
+          payloadKey: previewPayloadKey,
+          href: "",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Notify Dock could not prepare the rendered preview.",
+        });
       }
     }, 300);
 
@@ -180,17 +185,7 @@ function ActionComposer() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [
-    customerEmail,
-    dynamicDelayDetails,
-    dynamicGlobalShipDate,
-    emailType,
-    firstName,
-    orderNumber,
-    products,
-    shipDate,
-    sku,
-  ]);
+  }, [previewPayloadKey]);
 
   if (launchMode === "history_email") {
     return (
@@ -327,7 +322,8 @@ function ActionComposer() {
           <InlineStack inlineAlignment="space-between">
             {showsShipDate(emailType) ? (
               <Box inlineSize={showsSku(emailType) ? "48%" : "100%"}>
-                <DateField
+                <SharedShipDatePicker
+                  key={emailType}
                   label={
                     emailType === AWAITING_STOCK_EMAIL_TYPE
                       ? "Expected stock date"
@@ -658,6 +654,55 @@ function HistoryPreviewButton({entry}) {
   );
 }
 
+function SharedShipDatePicker({disabled = false, label, value, onChange}) {
+  // DatePicker commits a selection immediately; DateField can wait until blur.
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <BlockStack gap="small">
+      <Text>{label}</Text>
+      <InlineStack gap="small">
+        <Button
+          accessibilityLabel={`Choose ${label.toLowerCase()}`}
+          disabled={disabled}
+          onPress={() => setExpanded(!expanded)}
+          variant="secondary"
+        >
+          {value || "Select date"}
+        </Button>
+        {value ? (
+          <Button
+            accessibilityLabel={`Clear ${label.toLowerCase()}`}
+            disabled={disabled}
+            onPress={() => {
+              onChange("");
+              setExpanded(false);
+            }}
+            variant="secondary"
+          >
+            Clear date
+          </Button>
+        ) : null}
+      </InlineStack>
+      {expanded && !disabled ? (
+        <Box inlineSize="100%">
+          <DatePicker
+            selected={value || undefined}
+            onChange={(selected) => {
+              if (typeof selected !== "string") {
+                return;
+              }
+
+              onChange(selected);
+              setExpanded(false);
+            }}
+          />
+        </Box>
+      ) : null}
+    </BlockStack>
+  );
+}
+
 function ProductPreviewList({
   dynamicDelayDetails,
   dynamicGlobalShipDate,
@@ -731,10 +776,10 @@ function ProductPreviewList({
       {showDynamicGlobalSection ? (
         <BlockStack gap="base">
           <Divider />
-          <Text>Global Ship Date - Enter if all products share the same date</Text>
-          <DateField
+          <Text>Enter a global date if all products share the same date.</Text>
+          <SharedShipDatePicker
             disabled={hasConfiguredPerItemDelay && !dynamicGlobalShipDate}
-            label=""
+            label="Global ship date"
             value={dynamicGlobalShipDate}
             onChange={onDynamicGlobalShipDateChange}
           />
