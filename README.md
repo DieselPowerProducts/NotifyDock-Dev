@@ -1,5 +1,7 @@
 # Shopify App Template - Remix
 
+Notify Dock's Red Head pilot is documented in [Backorder automation setup and deployment](docs/backorder-automation.md).
+
 > [!NOTE]
 > **Remix is now React Router.** As of [React Router v7](https://remix.run/blog/merging-remix-and-react-router), Remix and React Router have merged.
 > 

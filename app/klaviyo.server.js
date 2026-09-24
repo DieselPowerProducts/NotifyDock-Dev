@@ -98,6 +98,9 @@ export async function sendNotifyDockEvent({
   shop,
   sku,
   subject,
+  requestEventUniqueId = crypto.randomUUID(),
+  metricName: requestedMetricName,
+  requestTimeoutMs,
 }) {
   const privateApiKey = process.env.KLAVIYO_PRIVATE_API_KEY;
   const formattedShipDate = formatNotifyDockShipDate(shipDate);
@@ -127,7 +130,7 @@ export async function sendNotifyDockEvent({
     throw error;
   }
 
-  const metricName = METRIC_NAMES[emailType];
+  const metricName = requestedMetricName || METRIC_NAMES[emailType];
 
   if (!metricName) {
     const error = new Error("Unsupported Klaviyo metric for this email type.");
@@ -135,7 +138,6 @@ export async function sendNotifyDockEvent({
     throw error;
   }
 
-  const requestEventUniqueId = crypto.randomUUID();
   const body = JSON.stringify({
     data: {
       type: "event",
@@ -197,6 +199,7 @@ export async function sendNotifyDockEvent({
 
   const response = await fetchKlaviyoWithRetry(KLAVIYO_API_URL, {
     method: "POST",
+    ...(requestTimeoutMs ? {signal: AbortSignal.timeout(requestTimeoutMs)} : {}),
     headers: {
       Accept: "application/json",
       Authorization: `Klaviyo-API-Key ${privateApiKey}`,
