@@ -126,6 +126,7 @@ export function buildDynamicShippingDelayDetailsHtml({
             delayRangeEnd: product.delayRangeEnd,
             delayRangeStart: product.delayRangeStart,
             delayState: product.delayState,
+            delayMessage: product.delayMessage,
           }),
         }),
       ].join("");
@@ -138,7 +139,12 @@ function buildDynamicDelayStatusText({
   delayRangeEnd,
   delayRangeStart,
   delayState,
+  delayMessage,
 }) {
+  if (delayState === "build_to_order_message") {
+    return escapeHtml(delayMessage || "").replace(/\r\n|\r|\n/g, "<br>");
+  }
+
   if (delayState === SPECIFIC_DATE_DELAY_STATE) {
     return `Based on information that we have received from the manufacturer, the current ship date of your part(s) is: <strong>${escapeHtml(delayDate || "Insert Ship date")}</strong>`;
   }

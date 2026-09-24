@@ -69,7 +69,8 @@ test("only new, tagged, uncancelled orders with outstanding items qualify", () =
 test("mixed-vendor order includes only exact Red Head matches and only delayed items", () => {
   const result = select(order({lineItems: [
     item("RH-A"),
-    item("RH-B", {availability: {value: "Build to Order"}, availabilityDate: {value: "2026-10-22"}}),
+    item("RH-B", {availability: {value: "Build to Order"}, availabilityDate: null,
+      buildToOrderMessage: {type: "single_line_text_field", value: "This product will ship in 2 Weeks from the manufacturer"}}),
     item("OTHER", {product: {vendor: "Another vendor"}, availabilityDate: null}),
     item("SIMILAR", {product: {vendor: "Red Head"}}),
     item("STOCK", {availability: {value: "In Stock"}, availabilityDate: null}),
@@ -77,10 +78,39 @@ test("mixed-vendor order includes only exact Red Head matches and only delayed i
   ]}));
   assert.equal(result.status, "ready");
   assert.deepEqual(result.payload.products.map((p) => [p.sku, p.delayDate]), [
-    ["RH-A", "2026-10-15"], ["RH-B", "2026-10-22"],
+    ["RH-A", "2026-10-15"], ["RH-B", ""],
   ]);
   assert.equal(result.payload.globalShipDate, "");
   assert.equal(result.payload.emailType, "dynamic_shipping_delay");
+});
+
+test("Built to Order accepts both spellings and uses only the full message, even with an old date", () => {
+  for (const availability of ["Build to Order", " Built to Order ", "BUILT TO ORDER"]) {
+    const result = select(order({lineItems: [item("RH-B", {
+      availability: {value: availability}, availabilityDate: {value: "2000-01-01"},
+      buildToOrderMessage: {type: "multi_line_text_field", value: "Ships in 2 Weeks.\nPlease allow extra time for delivery."},
+    })]}));
+    assert.equal(result.status, "ready");
+    assert.equal(result.payload.products[0].delayState, "build_to_order_message");
+    assert.equal(result.payload.products[0].delayDate, "");
+    assert.equal(result.payload.products[0].delayMessage, "Ships in 2 Weeks.\nPlease allow extra time for delivery.");
+  }
+});
+
+test("missing or unsupported Built to Order text holds a mixed notice even when a date exists", () => {
+  for (const field of [null, {value: "  "}, {type: "rich_text_field", value: '{"type":"root"}'}]) {
+    const result = select(order({lineItems: [item(), item("RH-B", {
+      availability: {value: "Built to Order"}, buildToOrderMessage: field,
+    })]}));
+    assert.equal(result.status, "waiting");
+    assert.match(result.reason, /RH-B: custom.build_to_order_message/);
+    assert.equal(result.payload, undefined);
+  }
+  const result = select(order({lineItems: [item("RH-A", {
+    buildToOrderMessage: {value: "Ignore this text for a Backorder item"},
+  })]}));
+  assert.equal(result.payload.products[0].delayMessage, "");
+  assert.equal(result.payload.products[0].delayDate, "2026-10-15");
 });
 
 test("missing, malformed, impossible or past date holds the entire notice", () => {
@@ -229,6 +259,32 @@ test("Klaviyo/network failure remains retryable and does not record success", as
   assert.ok(h.state.nextAttemptAt > now);
 });
 
+test("changed Built to Order text after an uncertain send holds instead of retrying stale text", async () => {
+  const bto = (message) => ({order: order({lineItems: [item("RH-B", {
+    availability: {value: "Built to Order"}, availabilityDate: null,
+    buildToOrderMessage: {value: message},
+  })]}), today: "2026-09-28"});
+  const h = workerHarness({loadOrder: async () => bto("Ships in 2 Weeks")});
+  h.failComplete(true);
+  assert.equal(await h.run(), "retry");
+  h.failComplete(false);
+  assert.equal(await h.run({loadOrder: async () => bto("Ships in 4 Weeks")}), "waiting");
+  assert.equal(h.sends.length, 1);
+  assert.match(h.state.reason, /messages changed/);
+});
+
+test("supplying missing Built to Order text releases the notice without requiring a date", async () => {
+  const bto = (message) => ({order: order({lineItems: [item("RH-B", {
+    availability: {value: "Built to Order"}, availabilityDate: null,
+    buildToOrderMessage: {value: message},
+  })]}), today: "2026-09-28"});
+  const h = workerHarness({loadOrder: async () => bto("")});
+  assert.equal(await h.run(), "waiting");
+  assert.equal(h.sends.length, 0);
+  assert.equal(await h.run({loadOrder: async () => bto("Ships in 2 Weeks")}), "accepted");
+  assert.equal(h.sends[0].products[0].delayMessage, "Ships in 2 Weeks");
+});
+
 test("a tag removed or order fulfilled while queued does not send", async () => {
   const h = workerHarness({loadOrder: async () => ({order: order({tags: []}), today: "2026-09-28"})});
   assert.equal(await h.run(), "skipped");
@@ -262,6 +318,7 @@ test("line item pagination includes matching SKUs on the last page", async () =>
   const calls = [];
   const admin = {graphql: async (query, {variables}) => {
     assert.match(query, /key: "product_availability_date"/);
+    assert.match(query, /key: "build_to_order_message"/);
     assert.doesNotMatch(query, /availability_date_confirmed/);
     calls.push(variables);
     return Response.json({data: {
@@ -311,6 +368,50 @@ test("actual Klaviyo sender preserves provided IDs and uses fresh IDs for manual
     assert.equal(bodies[0].data.attributes.metric.data.attributes.name, "Frozen metric");
     assert.notEqual(bodies[2].data.attributes.unique_id, bodies[3].data.attributes.unique_id);
     assert.match(bodies[0].data.attributes.properties.delay_details_html, /October 15, 2026/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.KLAVIYO_PRIVATE_API_KEY;
+    else process.env.KLAVIYO_PRIVATE_API_KEY = originalKey;
+  }
+});
+
+test("mixed product HTML and full plain text survive the real sender and template preview", async () => {
+  const {sendNotifyDockEvent, renderNotifyDockTemplate} = await importBundle("app/klaviyo.server.js");
+  const {buildNotifyDockMessage} = await importBundle("app/notify-dock-email-template.server.js");
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.KLAVIYO_PRIVATE_API_KEY;
+  const bodies = [];
+  process.env.KLAVIYO_PRIVATE_API_KEY = "offline-test-key";
+  globalThis.fetch = async (url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return url.includes("template-render") ? Response.json({data: {attributes: {html: "<p>Preview</p>"}}})
+      : new Response(null, {status: 202});
+  };
+  try {
+    const message = 'This product will ship in 2 Weeks from the manufacturer\nA & B <script>alert("test")</script>';
+    const payload = select(order({lineItems: [item("RH-A"), item("RH-B", {
+      availability: {value: "Built to Order"}, availabilityDate: null,
+      image: {url: "https://example.com/gear.jpg", altText: "Steering gear"},
+      buildToOrderMessage: {type: "multi_line_text_field", value: message},
+    })]})).payload;
+    payload.message = buildNotifyDockMessage(payload);
+    await sendNotifyDockEvent(payload);
+    await renderNotifyDockTemplate(payload);
+    const sent = bodies[0].data.attributes.properties;
+    const preview = bodies[1].data.attributes.context.event;
+    for (const event of [sent, preview]) {
+      assert.equal(event.products.length, 2);
+      assert.equal(event.products[1].delay_message, message);
+      assert.equal(event.products[1].delay_state, "build_to_order_message");
+      assert.match(event.message_html, /October 15, 2026/);
+      assert.match(event.message_html, /Product RH-A/);
+      assert.match(event.message_html, /Product RH-B/);
+      assert.match(event.message_html, /https:\/\/example.com\/gear.jpg/);
+      assert.match(event.message_html, /This product will ship in 2 Weeks from the manufacturer<br>A &amp; B &lt;script&gt;/);
+      assert.doesNotMatch(event.message_html, /<script>|Insert Ship date|not yet a confirmed/);
+    }
+    assert.equal(sent.message_html, preview.message_html);
+    assert.equal(sent.delay_details_html, preview.delay_details_html);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.KLAVIYO_PRIVATE_API_KEY;

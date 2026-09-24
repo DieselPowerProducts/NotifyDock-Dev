@@ -17,7 +17,7 @@ export async function processBackorderJob({job, config, repository, loadOrder, s
     )) {
       await update({
         status: "waiting",
-        reason: "Recipient, eligible items, or dates changed after a send attempt. Review Klaviyo activity before sending manually; the earlier request may already have been accepted.",
+        reason: "Recipient, eligible items, dates, or messages changed after a send attempt. Review Klaviyo activity before sending manually; the earlier request may already have been accepted.",
         nextAttemptAt: retryAt,
       });
       return "waiting";
@@ -57,7 +57,8 @@ export async function processBackorderJob({job, config, repository, loadOrder, s
 }
 
 function productSignature(products) {
-  return JSON.stringify(products.map(({sku, delayDate}) => [sku, delayDate]).sort((a, b) =>
+  return JSON.stringify(products.map(({sku, delayDate, delayState, delayMessage}) =>
+    [sku, delayDate, delayState || "specific_date", delayMessage || ""]).sort((a, b) =>
     JSON.stringify(a).localeCompare(JSON.stringify(b)),
   ));
 }

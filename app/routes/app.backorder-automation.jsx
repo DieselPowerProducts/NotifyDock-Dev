@@ -58,7 +58,7 @@ export default function BackorderAutomation() {
               <Text as="h2" variant="headingMd">Red Head pilot</Text>
               <Text as="p">Mode: {data.mode}. {data.enabledForShop ? "This store is included." : "This store is not enabled for automation."}</Text>
               <Text as="p">Vendor: {data.vendor}. Only orders created on or after {data.startAt || "the activation time (not yet configured)"} qualify.</Text>
-              <Text as="p">One initial email per order, covering unfulfilled Red Head items marked Backorder or Build to Order with a confirmed date. Other vendors are excluded.</Text>
+              <Text as="p">One initial email per tagged order, covering unfulfilled Red Head items. Backorder items use their availability date; Build to Order or Built to Order items use their existing message.</Text>
               <Text as="p">Last worker run: {data.scan?.lastRunAt || "Not yet run"}. Accepted means Klaviyo received the request; see the order’s Notify Dock email history for delivery status.</Text>
               {data.scan?.lastError && <Banner tone="critical">{data.scan.lastError}</Banner>}
               {data.mode === "dry-run" && <Banner tone="info">Dry run is active. Orders are checked, but no automated email is sent.</Banner>}
@@ -76,15 +76,15 @@ export default function BackorderAutomation() {
             </Text>
             <DataTable
               columnContentTypes={["text", "text", "text", "text"]}
-              headings={["Order", "Status", "SKUs and dates", "Details"]}
+              headings={["Order", "Status", "SKUs and messaging", "Details"]}
               rows={data.jobs.map((job) => [
                 <a key={job.id} href={job.orderUrl} target="_top">{job.orderNumber}</a>,
                 <Badge key={`${job.id}-status`} tone={job.status === "accepted" ? "success" : job.status === "retry" ? "critical" : "info"}>{LABELS[job.status] || job.status}</Badge>,
-                job.products.map((product) => `${product.sku}: ${product.delayDate}`).join("; ") || "—",
+                job.products.map((product) => `${product.sku}: ${product.delayMessage || product.delayDate}`).join("; ") || "—",
                 job.reason || "Waiting for processing.",
               ])}
             />
-            <Text as="p" tone="subdued">Showing the 50 most recently updated matching orders. Reload to refresh. Correct missing dates on the variant; waiting orders are checked again automatically.</Text>
+            <Text as="p" tone="subdued">Showing the 50 most recently updated matching orders. Reload to refresh. Correct missing dates or Built to Order messages on the variant; waiting orders are checked again automatically.</Text>
           </BlockStack>
         </Card>
       </BlockStack>

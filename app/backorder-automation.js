@@ -97,11 +97,18 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
     // Deliberately an exact match: this rollout is limited to Red Head.
     if (variant.product.vendor !== BACKORDER_PILOT_VENDOR) continue;
     const availability = `${variant.availability?.value || ""}`.trim().toLowerCase();
-    if (!["backorder", "build to order"].includes(availability)) continue;
+    if (!["backorder", "build to order", "built to order"].includes(availability)) continue;
+    const builtToOrder = availability !== "backorder";
     const sku = `${item.sku || variant.sku || ""}`.trim();
-    const date = normalizeAvailabilityDate(variant.availabilityDate, timeZone);
+    const date = builtToOrder ? "" : normalizeAvailabilityDate(variant.availabilityDate, timeZone);
+    const messageField = variant.buildToOrderMessage;
+    const message = builtToOrder ? `${messageField?.value || ""}`.trim() : "";
     if (!sku) problems.push(`${item.title}: SKU is missing.`);
-    if (!isValidAvailabilityDate(date)) {
+    if (builtToOrder) {
+      if (!message || (messageField?.type && !["single_line_text_field", "multi_line_text_field"].includes(messageField.type))) {
+        problems.push(`${sku || item.title}: custom.build_to_order_message is missing or invalid (expected plain text).`);
+      }
+    } else if (!isValidAvailabilityDate(date)) {
       problems.push(`${sku || item.title}: custom.product_availability_date is missing or invalid (expected a date/time convertible to the store's calendar date).`);
     } else if (date < today) {
       problems.push(`${sku || item.title}: confirmed availability date is in the past.`);
@@ -112,7 +119,8 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
       productVariantTitle: item.variantTitle || "",
       productImageUrl: variant.image?.url || item.image?.url || "",
       productImageAlt: variant.image?.altText || item.image?.altText || item.title,
-      delayState: "specific_date",
+      delayState: builtToOrder ? "build_to_order_message" : "specific_date",
+      delayMessage: message,
       delayDate: date,
       delayRangeStart: "",
       delayRangeEnd: "",
@@ -126,11 +134,12 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
 
   // The same variant can appear on multiple lines (for example, with different properties).
   const uniqueProducts = products.filter((product, index) =>
-    products.findIndex((other) => other.sku === product.sku && other.delayDate === product.delayDate) === index,
+    products.findIndex((other) => other.sku === product.sku && other.delayState === product.delayState &&
+      other.delayDate === product.delayDate && other.delayMessage === product.delayMessage) === index,
   );
   return {
     status: "ready",
-    reason: "All backordered items have confirmed dates.",
+    reason: "All selected items have availability dates or Built to Order messages.",
     payload: {
       customerEmail,
       emailType: BACKORDER_EMAIL_TYPE,

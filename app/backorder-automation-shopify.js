@@ -25,6 +25,7 @@ const ORDER_QUERY = `#graphql
             product { vendor }
             availability: metafield(namespace: "custom", key: "product_availability") { type value }
             availabilityDate: metafield(namespace: "custom", key: "product_availability_date") { type value }
+            buildToOrderMessage: metafield(namespace: "custom", key: "build_to_order_message") { type value }
           }
         }
         pageInfo { hasNextPage endCursor }

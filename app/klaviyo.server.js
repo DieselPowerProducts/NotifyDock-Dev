@@ -157,6 +157,7 @@ export async function sendNotifyDockEvent({
           product_variant_title: productVariantTitle,
           products: normalizedProducts.map((product) => ({
             delay_date: product.delayDate,
+            delay_message: product.delayMessage,
             delay_range_end: product.delayRangeEnd,
             delay_range_start: product.delayRangeStart,
             delay_state: product.delayState,
@@ -339,6 +340,7 @@ export async function renderNotifyDockTemplate({
               product_variant_title: normalizedProducts[0]?.productVariantTitle || "",
               products: normalizedProducts.map((product) => ({
                 delay_date: product.delayDate,
+                delay_message: product.delayMessage,
                 delay_range_end: product.delayRangeEnd,
                 delay_range_start: product.delayRangeStart,
                 delay_state: product.delayState,
@@ -743,6 +745,8 @@ function normalizeRenderProduct(product) {
   return {
     delayDate:
       `${product?.delay_date || product?.delayDate || ""}`.trim(),
+    delayMessage:
+      `${product?.delay_message || product?.delayMessage || ""}`.trim(),
     delayRangeEnd:
       `${product?.delay_range_end || product?.delayRangeEnd || ""}`.trim(),
     delayRangeStart:
@@ -763,6 +767,7 @@ function normalizeRenderProduct(product) {
 function normalizeKlaviyoProduct(product) {
   return {
     delayDate: `${product?.delayDate || ""}`.trim(),
+    delayMessage: `${product?.delayMessage || ""}`.trim(),
     delayRangeEnd: `${product?.delayRangeEnd || ""}`.trim(),
     delayRangeStart: `${product?.delayRangeStart || ""}`.trim(),
     delayState: normalizeKlaviyoDelayState(product),
