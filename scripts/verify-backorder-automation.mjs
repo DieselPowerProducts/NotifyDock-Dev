@@ -5,7 +5,7 @@ import {test} from "node:test";
 import {build} from "esbuild";
 import {
   BACKORDER_PILOT_VENDOR, getBackorderAutomationConfig, hasBackorderTag,
-  isValidAvailabilityDate, selectBackorderNotice,
+  isValidAvailabilityDate, normalizeAvailabilityDate, selectBackorderNotice,
 } from "../app/backorder-automation.js";
 import {processBackorderJob} from "../app/backorder-automation-worker.js";
 import {loadBackorderOrder} from "../app/backorder-automation-shopify.js";
@@ -92,6 +92,39 @@ test("missing, malformed, impossible or past date holds the entire notice", () =
   }
   assert.ok(isValidAvailabilityDate("2028-02-29"));
   assert.equal(isValidAvailabilityDate("2026-02-29"), false);
+});
+
+test("date_time is converted to the store's calendar date across UTC midnight", () => {
+  const field = (value) => ({type: "date_time", value});
+  assert.equal(normalizeAvailabilityDate(field("2026-10-16T01:30:00Z"), "America/Los_Angeles"), "2026-10-15");
+  assert.equal(normalizeAvailabilityDate(field("2026-10-15T18:30:00-07:00"), "America/Los_Angeles"), "2026-10-15");
+  assert.equal(normalizeAvailabilityDate(field("2026-10-15T20:30:00Z"), "Asia/Tokyo"), "2026-10-16");
+  assert.equal(normalizeAvailabilityDate(field("2026-10-16T01:30:00.123"), "America/Los_Angeles"), "2026-10-15", "Shopify zone-less date_time values default to GMT");
+});
+
+test("conversion follows the store's daylight-saving rules", () => {
+  const field = (value) => ({type: "date_time", value});
+  assert.equal(normalizeAvailabilityDate(field("2026-07-15T07:30:00Z"), "America/Los_Angeles"), "2026-07-15");
+  assert.equal(normalizeAvailabilityDate(field("2026-12-15T07:30:00Z"), "America/Los_Angeles"), "2026-12-14");
+});
+
+test("invalid timestamps, unsupported types and missing timezone cannot become send dates", () => {
+  for (const value of ["", "true", "2026-10-15", "2026-02-30T12:00:00Z", "2026-10-15T25:00:00Z", "2026-10-15T12:60:00Z", "2026-10-15T12:00:00+99:00", '["2026-10-15T12:00:00Z"]']) {
+    assert.equal(normalizeAvailabilityDate({type: "date_time", value}, "America/Los_Angeles"), "", value);
+  }
+  assert.equal(normalizeAvailabilityDate({type: "boolean", value: "2026-10-15"}, "UTC"), "");
+  assert.equal(normalizeAvailabilityDate({type: "date_time", value: "2026-10-15T12:00:00Z"}), "");
+  assert.equal(normalizeAvailabilityDate({type: "date_time", value: "2026-10-15T12:00:00Z"}, "Invalid/Timezone"), "");
+  assert.equal(normalizeAvailabilityDate({type: "date", value: "2026-10-15"}, "America/Los_Angeles"), "2026-10-15");
+});
+
+test("past-date checks use the converted calendar date, not the UTC date", () => {
+  const result = selectBackorderNotice({
+    order: order({lineItems: [item("RH", {availabilityDate: {type: "date_time", value: "2026-09-28T01:00:00Z"}})]}),
+    config, today: "2026-09-28", timeZone: "America/Los_Angeles",
+  });
+  assert.equal(result.status, "waiting");
+  assert.match(result.reason, /past/);
 });
 
 test("deleted variants, missing vendor, missing SKU and missing recipient hold the notice", () => {
@@ -215,9 +248,21 @@ test("a date supplied later releases a waiting order using the latest variant da
   assert.equal(h.sends[0].products[0].delayDate, "2026-10-22");
 });
 
+test("worker uses the store timezone and passes a date-only value to the existing email flow", async () => {
+  const h = workerHarness({loadOrder: async () => ({
+    order: order({lineItems: [item("RH", {availabilityDate: {type: "date_time", value: "2026-10-16T01:30:00Z"}})]}),
+    today: "2026-09-28", timeZone: "America/Los_Angeles",
+  })});
+  assert.equal(await h.run(), "accepted");
+  assert.equal(h.sends[0].products[0].delayDate, "2026-10-15");
+  assert.equal(h.sends[0].products[0].delayState, "specific_date");
+});
+
 test("line item pagination includes matching SKUs on the last page", async () => {
   const calls = [];
-  const admin = {graphql: async (_query, {variables}) => {
+  const admin = {graphql: async (query, {variables}) => {
+    assert.match(query, /key: "product_availability_date"/);
+    assert.doesNotMatch(query, /availability_date_confirmed/);
     calls.push(variables);
     return Response.json({data: {
       shop: {name: "Shop", ianaTimezone: "America/Los_Angeles"},
@@ -232,6 +277,7 @@ test("line item pagination includes matching SKUs on the last page", async () =>
   assert.equal(calls[1].after, "page-2");
   assert.equal(result.order.lineItems.length, 2);
   assert.equal(result.today, "2026-09-27");
+  assert.equal(result.timeZone, "America/Los_Angeles");
 });
 
 test("partial GraphQL errors prevent sending with incomplete order data", async () => {
@@ -298,7 +344,7 @@ test("duplicate webhooks, concurrent workers, and reconciliation produce only on
   const shop = "test.myshopify.com";
   const currentOrder = order({
     createdAt: new Date().toISOString(),
-    lineItems: [item("RH", {availabilityDate: {value: "2099-10-15"}})],
+    lineItems: [item("RH", {availabilityDate: {type: "date_time", value: "2099-10-15T16:30:00Z"}})],
   });
   const apply = (entry, data) => {
     for (const [key, value] of Object.entries(data)) {

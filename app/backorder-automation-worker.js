@@ -5,8 +5,8 @@ export async function processBackorderJob({job, config, repository, loadOrder, s
   const update = (data) => repository.update(job.id, data);
   const retryAt = new Date(now.getTime() + 15 * 60 * 1000);
   try {
-    const {order, shopName, today} = await loadOrder(job.orderId);
-    const selection = selectBackorderNotice({order, config, today});
+    const {order, shopName, today, timeZone} = await loadOrder(job.orderId);
+    const selection = selectBackorderNotice({order, config, today, timeZone});
     if (selection.status !== "ready") {
       await update({status: selection.status, reason: selection.reason, nextAttemptAt: retryAt});
       return selection.status;

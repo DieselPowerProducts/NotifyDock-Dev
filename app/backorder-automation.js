@@ -40,7 +40,34 @@ export function isValidAvailabilityDate(value) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-export function selectBackorderNotice({order, config, today}) {
+export function formatStoreDate(value, timeZone) {
+  if (!timeZone) return "";
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(value);
+    const part = (type) => parts.find((entry) => entry.type === type).value;
+    return `${part("year")}-${part("month")}-${part("day")}`;
+  } catch (_error) {
+    return "";
+  }
+}
+
+export function normalizeAvailabilityDate(metafield, timeZone) {
+  const value = `${metafield?.value || ""}`.trim();
+  const type = metafield?.type;
+  if (type && !["date", "date_time"].includes(type)) return "";
+  if (type !== "date_time" && isValidAvailabilityDate(value)) return value;
+  if (type === "date") return "";
+  // Shopify date_time values without an explicit timezone default to GMT.
+  // Validate before Date parsing, which would otherwise roll February 30 forward.
+  if (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/.test(value) ||
+    !isValidAvailabilityDate(value.slice(0, 10))) return "";
+  const timestamp = new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`);
+  return formatStoreDate(timestamp, timeZone);
+}
+
+export function selectBackorderNotice({order, config, today, timeZone}) {
   const skip = (reason) => ({status: "skipped", reason});
   const wait = (reason) => ({status: "waiting", reason});
   if (!order) return skip("Order no longer exists.");
@@ -72,10 +99,10 @@ export function selectBackorderNotice({order, config, today}) {
     const availability = `${variant.availability?.value || ""}`.trim().toLowerCase();
     if (!["backorder", "build to order"].includes(availability)) continue;
     const sku = `${item.sku || variant.sku || ""}`.trim();
-    const date = `${variant.availabilityDate?.value || ""}`.trim();
+    const date = normalizeAvailabilityDate(variant.availabilityDate, timeZone);
     if (!sku) problems.push(`${item.title}: SKU is missing.`);
     if (!isValidAvailabilityDate(date)) {
-      problems.push(`${sku || item.title}: confirmed availability date is missing or invalid (expected YYYY-MM-DD).`);
+      problems.push(`${sku || item.title}: custom.product_availability_date is missing or invalid (expected a date/time convertible to the store's calendar date).`);
     } else if (date < today) {
       problems.push(`${sku || item.title}: confirmed availability date is in the past.`);
     }

@@ -1,3 +1,5 @@
+import {formatStoreDate} from "./backorder-automation.js";
+
 export const BACKORDER_SCAN_QUERY = `#graphql
   query BackorderOrders($after: String, $query: String!) {
     orders(first: 100, after: $after, query: $query, sortKey: CREATED_AT) {
@@ -22,7 +24,7 @@ const ORDER_QUERY = `#graphql
             id sku image { url altText }
             product { vendor }
             availability: metafield(namespace: "custom", key: "product_availability") { type value }
-            availabilityDate: metafield(namespace: "custom", key: "availability_date_confirmed") { type value }
+            availabilityDate: metafield(namespace: "custom", key: "product_availability_date") { type value }
           }
         }
         pageInfo { hasNextPage endCursor }
@@ -55,14 +57,13 @@ export async function loadBackorderOrder(admin, orderId, now = new Date()) {
     if (!order) return {order: null};
     lineItems.push(...order.lineItems.nodes);
     if (!order.lineItems.pageInfo.hasNextPage) {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: shop.ianaTimezone, year: "numeric", month: "2-digit", day: "2-digit",
-      }).formatToParts(now);
-      const part = (type) => parts.find((entry) => entry.type === type).value;
+      const today = formatStoreDate(now, shop.ianaTimezone);
+      if (!today) throw new Error("Shopify store timezone is missing or invalid.");
       return {
         order: {...order, lineItems},
         shopName: shop.name,
-        today: `${part("year")}-${part("month")}-${part("day")}`,
+        timeZone: shop.ianaTimezone,
+        today,
       };
     }
     const cursor = order.lineItems.pageInfo.endCursor;
