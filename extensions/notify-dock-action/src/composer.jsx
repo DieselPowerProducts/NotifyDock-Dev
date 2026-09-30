@@ -1,5 +1,5 @@
-import {useEffect, useState} from "react";
-import {useApi} from "@shopify/ui-extensions-react/admin";
+/** @jsxImportSource preact */
+import {useEffect, useState} from "preact/hooks";
 
 export const DYNAMIC_SHIPPING_DELAY_EMAIL_TYPE = "dynamic_shipping_delay";
 export const AWAITING_STOCK_EMAIL_TYPE = "awaiting_stock";
@@ -23,8 +23,8 @@ const DEFAULT_FROM_OPTIONS = [
   },
 ];
 
-export function useComposerState(target) {
-  const api = useApi(target);
+export function useComposerState() {
+  const api = shopify;
   const {data} = api;
   const launchUrl = getLaunchUrl(api.intents?.launchUrl);
   const launchMode = getLaunchParam(launchUrl, "mode");
@@ -51,6 +51,7 @@ export function useComposerState(target) {
   const [sku, setSku] = useState("");
   const [shipDate, setShipDate] = useState("");
   const [products, setProducts] = useState([]);
+  const [backorderDetails, setBackorderDetails] = useState([]);
   const [emailType, setEmailType] = useState(DEFAULT_EMAIL_TYPE);
   const [fromAddress, setFromAddress] = useState(DEFAULT_FROM_OPTIONS[0].value);
   const [subject, setSubject] = useState(
@@ -85,6 +86,7 @@ export function useComposerState(target) {
     setSku("");
     setShipDate("");
     setProducts([]);
+    setBackorderDetails([]);
     setEmailType(DEFAULT_EMAIL_TYPE);
     setFromAddress(DEFAULT_FROM_OPTIONS[0].value);
     setSubjectDirty(false);
@@ -110,6 +112,7 @@ export function useComposerState(target) {
       setError("");
 
       try {
+        /** @type {{data?: Record<string, any>, errors?: {message: string}[]}} */
         const result = await api.query(
           `query OrderEmailPanel($id: ID!) {
             shop {
@@ -119,6 +122,7 @@ export function useComposerState(target) {
               id
               name
               email
+              tags
               lineItems(first: 100) {
                 nodes {
                   sku
@@ -173,6 +177,23 @@ export function useComposerState(target) {
         setFirstName(firstName);
         setCustomerEmail(customerEmail);
         setOrderSkuReferences(buildOrderSkuReferences(order.lineItems?.nodes));
+        if (order.tags?.some((tag) => tag.trim().toLowerCase() === "backorder")) {
+          try {
+            const response = await fetch(`/api/backorder-details?order_id=${encodeURIComponent(orderId)}`);
+            const details = await response.json();
+            if (cancelled) return;
+            if (!response.ok) throw new Error(details.error || "Unable to read backorder details.");
+            if (details.status === "ready") {
+              setBackorderDetails(details.payload.products);
+              setSku(details.payload.sku);
+            } else if (details.status === "waiting") {
+              setError(details.reason);
+            }
+          } catch (detailsError) {
+            if (cancelled) return;
+            setError(detailsError.message || "Unable to read backorder details.");
+          }
+        }
         setLoadingOrder(false);
       } catch (_loadError) {
         if (!cancelled) {
@@ -520,6 +541,7 @@ export function useComposerState(target) {
 
   return {
     api,
+    backorderDetails,
     customerEmail,
     emailType,
     error,
@@ -807,6 +829,7 @@ function buildRequestedProducts({requestedSkus, resolvedProducts}) {
 
 function serializeProductPayload(product) {
   return {
+    delay_message: product.delayMessage || "",
     delay_date: product.delayDate || "",
     delay_range_end: product.delayRangeEnd || "",
     delay_range_start: product.delayRangeStart || "",
@@ -873,6 +896,7 @@ function attachDynamicDelayDetails({delayDetails, emailType, products}) {
         `${detail?.sku || ""}`.trim(),
         {
           delayDate: `${detail?.delayDate || ""}`.trim(),
+          delayMessage: `${detail?.delayMessage || ""}`.trim(),
           delayRangeEnd: `${detail?.delayRangeEnd || ""}`.trim(),
           delayRangeStart: `${detail?.delayRangeStart || ""}`.trim(),
           delayState: `${detail?.delayState || ""}`.trim(),
@@ -892,6 +916,7 @@ function attachDynamicDelayDetails({delayDetails, emailType, products}) {
     return {
       ...product,
       delayDate: detail.delayDate,
+      delayMessage: detail.delayMessage,
       delayRangeEnd: detail.delayRangeEnd,
       delayRangeStart: detail.delayRangeStart,
       delayState: detail.delayState,

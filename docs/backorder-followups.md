@@ -1,0 +1,15 @@
+# One-time follow-ups after generic notices
+
+Successful manual Shipping Delay sends and automatic initial notices can enroll items, only after the initial Klaviyo event is accepted and its `NotifyDockEmailHistory` row is saved. The locked order creation cutoff applies to both. Existing history is never backfilled and no order/catalog search is performed by the scheduler.
+
+Enrollment requires a Shipping Delay email with no global date, an included product using the generic message, and an outstanding order line with an exact Red-Head Steering Gears Inc. vendor and Backorder / Build to Order / Built to Order availability. Each record identifies the shop, order, line item, variant, original availability type and initial email history. An item is enrolled only once per order. The recipient comes from the original manual email, including an address typed into To.
+
+Backorder records wait for a valid non-past `custom.product_availability_date`. Built to Order records wait for nonblank plain text in `custom.build_to_order_message`. Missing information remains pending. Cancelled, fulfilled, removed or reclassified items stop without sending. Ready items from the same initial email are grouped into one follow-up. Other waiting items can receive their own one-time follow-up later.
+
+`.github/workflows/backorder-followups.yml` schedules one daily run at 16:00 America/Los_Angeles, including daylight saving changes. No five-minute timers remain. The workflow calls the endpoint in pages until due tracked work is drained, with a 45-minute limit. The endpoint refuses product checks outside the 4 p.m. Pacific hour. GitHub schedules may start late, so 4:00 is the scheduled start, not an exact delivery guarantee. Failed sends retain their stable payload for the next daily check; missing information also waits until the next day. The former test-time override is not configured in production.
+
+`NOTIFY_DOCK_FOLLOWUP_ENABLED=true`, `NOTIFY_DOCK_FOLLOWUP_SHOPS` (exact shop allowlist) and `NOTIFY_DOCK_FOLLOWUP_SECRET` are required. The scheduler secret is stored in production Vercel environment variables and the production GitHub repository's Actions secrets. The workflow is restricted to DieselPowerProducts/NotifyDock. The current production pilot is fbgure-nn.myshopify.com. No scheduler is enabled in previews by default. Set enabled=false and redeploy to stop enrollment and processing.
+
+Before contacting Klaviyo, the database stores a batch with its exact payload, recipient, metric and stable event ID. Retries reuse that ID so an uncertain network response cannot create another event. Changes to queued items hold the batch for review. A shop lease prevents concurrent workers. Accepted batches and items remain completed and are never sent again. Klaviyo acceptance is not proof of inbox delivery; delivery tracking remains in email history.
+
+Verification: `node --test scripts/verify-backorder-followups.mjs`, `node --test scripts/verify-backorder-prefill.mjs`, `node scripts/verify-composer-dates.mjs`, `npm run build`.

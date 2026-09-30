@@ -91,6 +91,7 @@ function normalizePreviewProducts(products) {
   return products
     .map((product) => ({
       delayDate: `${product?.delayDate || ""}`.trim(),
+      delayMessage: `${product?.delayMessage || ""}`.trim(),
       delayRangeEnd: `${product?.delayRangeEnd || ""}`.trim(),
       delayRangeStart: `${product?.delayRangeStart || ""}`.trim(),
       delayState: `${product?.delayState || ""}`.trim(),

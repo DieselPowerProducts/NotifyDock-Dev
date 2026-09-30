@@ -8,6 +8,7 @@ import {recordEmailHistory} from "../email-history.server";
 import {buildNotifyDockMessage} from "../notify-dock-email-template.server";
 import {captureNotifyDockRenderedSnapshot, sendNotifyDockEvent} from "../klaviyo.server";
 import {authenticate} from "../shopify.server";
+import {prepareFollowupTracking, saveFollowupTracking} from "../backorder-followup.server";
 
 const VALID_EMAIL_TYPES = new Set([
   "awaiting_stock",
@@ -26,7 +27,7 @@ export async function loader({request}) {
 }
 
 export async function action({request}) {
-  const {cors, session} = await authenticate.admin(request);
+  const {admin, cors, session} = await authenticate.admin(request);
 
   if (request.method === "OPTIONS") {
     return cors(new Response(null, {status: 204}));
@@ -118,6 +119,8 @@ export async function action({request}) {
   }
 
   try {
+    const followupCandidates = await prepareFollowupTracking({admin, shop: session.shop, orderId,
+      products: resolvedProducts, emailType, globalShipDate});
     const sentAt = new Date();
     const sentByEmail = getCurrentUserEmail(session);
     const result = await sendNotifyDockEvent({
@@ -152,7 +155,7 @@ export async function action({request}) {
     }
 
     try {
-      await recordEmailHistory({
+      const savedHistory = await recordEmailHistory({
         customerEmail,
         emailType,
         firstName,
@@ -168,6 +171,7 @@ export async function action({request}) {
         sku: resolvedSkuValue,
         subject,
       });
+      await saveFollowupTracking(savedHistory, followupCandidates);
     } catch (historyError) {
       historyWarning =
         historyError instanceof Error
@@ -307,6 +311,10 @@ function isDynamicShippingDelayConfigured({globalShipDate, products}) {
       return Boolean(`${product?.delayDate || ""}`.trim());
     }
 
+    if (delayState === "build_to_order_message") {
+      return Boolean(`${product?.delayMessage || ""}`.trim());
+    }
+
     if (!isBusinessDaysDelayState(delayState)) {
       return true;
     }
@@ -361,6 +369,7 @@ function normalizeProduct(product) {
 
   return {
     delayDate: `${product?.delay_date || product?.delayDate || ""}`.trim(),
+    delayMessage: `${product?.delay_message || product?.delayMessage || ""}`.trim(),
     delayRangeEnd:
       `${product?.delay_range_end || product?.delayRangeEnd || ""}`.trim(),
     delayRangeStart:

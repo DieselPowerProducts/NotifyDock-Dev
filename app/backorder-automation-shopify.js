@@ -1,14 +1,5 @@
 import {formatStoreDate} from "./backorder-automation.js";
 
-export const BACKORDER_SCAN_QUERY = `#graphql
-  query BackorderOrders($after: String, $query: String!) {
-    orders(first: 100, after: $after, query: $query, sortKey: CREATED_AT) {
-      nodes { id name createdAt tags }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`;
-
 const ORDER_QUERY = `#graphql
   query BackorderOrder($id: ID!, $after: String) {
     shop { name ianaTimezone }

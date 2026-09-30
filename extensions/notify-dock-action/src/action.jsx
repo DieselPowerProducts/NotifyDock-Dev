@@ -1,3 +1,6 @@
+/** @jsxImportSource preact */
+import "@shopify/ui-extensions/preact";
+import {render} from "preact";
 import {
   AdminAction,
   Badge,
@@ -14,9 +17,8 @@ import {
   Select,
   Text,
   TextField,
-  reactExtension,
-} from "@shopify/ui-extensions-react/admin";
-import {useEffect, useState} from "react";
+} from "../../shared/polaris";
+import {useEffect, useState} from "preact/hooks";
 import {
   AWAITING_STOCK_EMAIL_TYPE,
   BUSINESS_DAYS_RANGE_DELAY_STATE,
@@ -27,13 +29,15 @@ import {
   useComposerState,
 } from "./composer.jsx";
 
-const TARGET = "admin.order-details.action.render";
 
-export default reactExtension(TARGET, () => <ActionComposer />);
+export default function extension() {
+  render(<ActionComposer />, document.body);
+}
 
 function ActionComposer() {
   const {
     api,
+    backorderDetails,
     customerEmail,
     emailType,
     error,
@@ -69,7 +73,7 @@ function ActionComposer() {
     sku,
     status,
     subject,
-  } = useComposerState(TARGET);
+  } = useComposerState();
 
   const selectedHistoryEntry =
     history.find((entry) => entry.id === selectedHistoryId) || null;
@@ -140,9 +144,9 @@ function ActionComposer() {
     }
 
     setDynamicDelayDetails((current) =>
-      synchronizeDynamicDelayDetails(current, products),
+      synchronizeDynamicDelayDetails(current, products, backorderDetails),
     );
-  }, [emailType, products]);
+  }, [emailType, products, backorderDetails]);
 
   useEffect(() => {
     let cancelled = false;
@@ -272,7 +276,7 @@ function ActionComposer() {
         ) : null}
 
         {loadingOrder ? (
-          <ProgressIndicator size="small" accessibilityLabel="Loading order details" />
+          <ProgressIndicator size="base" accessibilityLabel="Loading order details" />
         ) : null}
 
         {error ? <Banner tone="critical">{error}</Banner> : null}
@@ -366,7 +370,7 @@ function ActionComposer() {
         ) : null}
 
         {showsSku(emailType) && loadingProduct ? (
-          <ProgressIndicator size="small" accessibilityLabel="Loading product preview" />
+          <ProgressIndicator size="base" accessibilityLabel="Loading product preview" />
         ) : null}
 
         {showsSku(emailType) && lookupError ? <Banner tone="warning">{lookupError}</Banner> : null}
@@ -559,6 +563,7 @@ function HistoryRecipientEditor({
   );
 }
 
+/** @param {{alignment?: "start" | "center" | "end"}} props */
 function HistoryTimelineConnector({alignment = "center"}) {
   return (
     <Box inlineSize={20} minInlineSize={20}>
@@ -807,12 +812,18 @@ function ProductPreviewList({
                    const normalizedValue = normalizeDynamicDelayRange(value);
 
                    setDraftDelayRange(normalizedValue);
-
-                   if (normalizedValue.start && normalizedValue.end) {
-                     onDynamicDelayRangeChange(product.sku, normalizedValue);
-                     closeDynamicDelayEditor();
-                   }
                  }}
+                 onDelayRangeApply={() => {
+                   const normalizedValue = normalizeDynamicDelayRange(draftDelayRange);
+
+                   if (!normalizedValue.start || !normalizedValue.end) {
+                     return;
+                   }
+
+                   onDynamicDelayRangeChange(product.sku, normalizedValue);
+                   closeDynamicDelayEditor();
+                 }}
+                 onCancel={closeDynamicDelayEditor}
                />
              ) : (
                <BlockStack gap="small">
@@ -853,6 +864,9 @@ function ProductPreviewList({
                 </InlineStack>
 
                 {isDynamicShippingDelay(emailType) && !product.isPlaceholder ? (
+                  dynamicDelayLookup.get(product.sku)?.delayState === "build_to_order_message" ? (
+                    <Text>{dynamicDelayLookup.get(product.sku).delayMessage}</Text>
+                  ) : (
                   <DynamicDelaySummary
                     detail={dynamicDelayLookup.get(product.sku) || EMPTY_DYNAMIC_DELAY_DETAIL}
                     disabled={globalDelayActive}
@@ -869,6 +883,7 @@ function ProductPreviewList({
                       );
                     }}
                   />
+                  )
                 ) : null}
               </BlockStack>
             )}
@@ -893,7 +908,7 @@ function DynamicDelaySummary({
         accessibilityLabel={buildDynamicDelayShipDateSummaryLabel(detail)}
         onPress={disabled ? undefined : onShipDateEdit}
       >
-        <Badge size="small-100">
+        <Badge size="base">
           {buildDynamicDelayShipDateSummaryLabel(detail)}
         </Badge>
       </Pressable>
@@ -902,7 +917,7 @@ function DynamicDelaySummary({
         accessibilityLabel={buildDynamicDelayBuiltToOrderSummaryLabel(detail)}
         onPress={disabled ? undefined : onBuiltToOrderEdit}
       >
-        <Badge size="small-100">
+        <Badge size="base">
           {buildDynamicDelayBuiltToOrderSummaryLabel(detail)}
         </Badge>
       </Pressable>
@@ -914,9 +929,14 @@ function DynamicDelayEditorCard({
   delayRange,
   delayDate,
   mode,
+  onCancel,
   onDelayDateChange,
+  onDelayRangeApply,
   onDelayRangeChange,
 }) {
+  const normalizedRange = normalizeDynamicDelayRange(delayRange);
+  const rangeIsComplete = Boolean(normalizedRange.start && normalizedRange.end);
+
   return (
     <BlockStack gap="small">
       <Text>
@@ -927,6 +947,13 @@ function DynamicDelayEditorCard({
 
       <Box inlineSize="100%" maxInlineSize="100%" minInlineSize="100%">
         <DatePicker
+          key={
+            mode === BUILT_TO_ORDER_EDITOR_MODE
+              ? rangeIsComplete
+                ? "complete-range"
+                : "range-start"
+              : "single-date"
+          }
           selected={
             mode === BUILT_TO_ORDER_EDITOR_MODE
               ? buildDatePickerRangeSelection(delayRange)
@@ -934,11 +961,13 @@ function DynamicDelayEditorCard({
           }
           onChange={(value) => {
             if (mode === BUILT_TO_ORDER_EDITOR_MODE) {
-              if (!value || Array.isArray(value) || typeof value === "string") {
+              const nextRange = resolveDatePickerRangeChange(value, delayRange);
+
+              if (!nextRange.start && !nextRange.end) {
                 return;
               }
 
-              onDelayRangeChange(value);
+              onDelayRangeChange(nextRange);
               return;
             }
 
@@ -950,6 +979,21 @@ function DynamicDelayEditorCard({
           }}
         />
       </Box>
+
+      {mode === BUILT_TO_ORDER_EDITOR_MODE ? (
+        <InlineStack gap="small" inlineAlignment="start">
+          <Button
+            disabled={!rangeIsComplete}
+            onPress={onDelayRangeApply}
+            variant="primary"
+          >
+            Apply range
+          </Button>
+          <Button onPress={onCancel} variant="secondary">
+            Cancel
+          </Button>
+        </InlineStack>
+      ) : null}
     </BlockStack>
   );
 }
@@ -1268,7 +1312,41 @@ function isDynamicShippingDelay(emailType) {
 function buildDatePickerRangeSelection(value) {
   const normalizedRange = normalizeDynamicDelayRange(value);
 
-  return normalizedRange.start || normalizedRange.end ? normalizedRange : {};
+  if (!normalizedRange.start) {
+    return undefined;
+  }
+
+  return normalizedRange.end ? normalizedRange : normalizedRange.start;
+}
+
+function buildInclusiveDateRangeSelection(value) {
+  const normalizedRange = normalizeDynamicDelayRange(value);
+
+  if (!normalizedRange.start) {
+    return [];
+  }
+
+  const rangeEnd = normalizedRange.end || normalizedRange.start;
+  const startDate = new Date(`${normalizedRange.start}T00:00:00Z`);
+  const endDate = new Date(`${rangeEnd}T00:00:00Z`);
+
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    endDate < startDate
+  ) {
+    return [normalizedRange.start];
+  }
+
+  const selectedDates = [];
+  const currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    selectedDates.push(currentDate.toISOString().slice(0, 10));
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return selectedDates;
 }
 
 function detailHasDynamicDelay(detail) {
@@ -1317,17 +1395,62 @@ function normalizeDynamicDelayRange(value) {
   };
 }
 
-function synchronizeDynamicDelayDetails(currentDetails, products) {
+function resolveDatePickerRangeChange(value, currentValue) {
+  const currentRange = normalizeDynamicDelayRange(currentValue);
+
+  if (typeof value === "string") {
+    return buildDynamicDelayRangeFromClick(value, currentRange);
+  }
+
+  if (Array.isArray(value)) {
+    const selectedDates = value
+      .map((selectedDate) => `${selectedDate || ""}`.trim())
+      .filter(Boolean)
+      .sort();
+    const currentDates = buildInclusiveDateRangeSelection(currentRange);
+    const changedDates = [...new Set([...currentDates, ...selectedDates])]
+      .filter(
+        (selectedDate) =>
+          currentDates.includes(selectedDate) !== selectedDates.includes(selectedDate),
+      )
+      .sort();
+    const clickedDate = changedDates.at(-1) || selectedDates.at(-1) || "";
+
+    return buildDynamicDelayRangeFromClick(clickedDate, currentRange);
+  }
+
+  return normalizeDynamicDelayRange(value);
+}
+
+function buildDynamicDelayRangeFromClick(value, currentValue) {
+  const selectedDate = `${value || ""}`.trim();
+  const currentRange = normalizeDynamicDelayRange(currentValue);
+
+  if (!selectedDate) {
+    return EMPTY_DYNAMIC_DELAY_RANGE;
+  }
+
+  if (!currentRange.start || currentRange.end) {
+    return {start: selectedDate, end: ""};
+  }
+
+  return selectedDate < currentRange.start
+    ? {start: selectedDate, end: currentRange.start}
+    : {start: currentRange.start, end: selectedDate};
+}
+
+function synchronizeDynamicDelayDetails(currentDetails, products, backorderDetails = []) {
   const currentBySku = new Map(
     currentDetails.map((detail) => [`${detail?.sku || ""}`.trim(), detail]),
   );
 
   return products.map((product) => {
     const sku = `${product?.sku || ""}`.trim();
-    const currentDetail = currentBySku.get(sku);
+    const currentDetail = currentBySku.get(sku) || backorderDetails.find((detail) => detail.sku === sku);
 
     return {
       delayDate: `${currentDetail?.delayDate || ""}`.trim(),
+      delayMessage: `${currentDetail?.delayMessage || ""}`.trim(),
       delayRangeEnd: `${currentDetail?.delayRangeEnd || ""}`.trim(),
       delayRangeStart: `${currentDetail?.delayRangeStart || ""}`.trim(),
       delayState: `${currentDetail?.delayState || ""}`.trim(),
@@ -1359,6 +1482,7 @@ function decoratePreviewProducts({dynamicDelayDetails, emailType, products}) {
       `${detail?.sku || ""}`.trim(),
       {
         delayDate: `${detail?.delayDate || ""}`.trim(),
+        delayMessage: `${detail?.delayMessage || ""}`.trim(),
         delayRangeEnd: `${detail?.delayRangeEnd || ""}`.trim(),
         delayRangeStart: `${detail?.delayRangeStart || ""}`.trim(),
         delayState: `${detail?.delayState || ""}`.trim(),
@@ -1376,6 +1500,7 @@ function decoratePreviewProducts({dynamicDelayDetails, emailType, products}) {
     return {
       ...product,
       delayDate: detail.delayDate,
+      delayMessage: detail.delayMessage,
       delayRangeEnd: detail.delayRangeEnd,
       delayRangeStart: detail.delayRangeStart,
       delayState: detail.delayState,

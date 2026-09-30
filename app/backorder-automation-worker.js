@@ -1,4 +1,5 @@
 import {selectBackorderNotice} from "./backorder-automation.js";
+import {genericFollowupCandidates} from "./backorder-followup.js";
 
 // Dependencies are injected so failure/retry behavior can be tested without sending email.
 export async function processBackorderJob({job, config, repository, loadOrder, send, buildMessage, now = new Date()}) {
@@ -30,6 +31,7 @@ export async function processBackorderJob({job, config, repository, loadOrder, s
     }
     const payload = job.sendPayload || {
       ...selection.payload,
+      followupCandidates: genericFollowupCandidates({order, ...selection.payload}),
       shop: shopName || job.shop,
       message: buildMessage(selection.payload),
       requestEventUniqueId: job.id,

@@ -58,10 +58,52 @@ model NotifyDockEmailHistory {
   deliveryCheckedAt DateTime?
   sentAt        DateTime @default(now())
   createdAt     DateTime @default(now())
+  followupItems NotifyDockFollowupItem[]
 
   @@index([shop, orderId, sentAt(sort: Desc)])
   @@index([shop, customerEmail, sentAt(sort: Desc)])
   @@index([shop, deliveryStatus, sentAt(sort: Desc)])
+}
+
+model NotifyDockFollowupItem {
+  id String @id
+  shop String
+  orderId String
+  lineItemId String
+  variantId String
+  sku String
+  kind String
+  initialHistoryId String
+  initialHistory NotifyDockEmailHistory @relation(fields: [initialHistoryId], references: [id])
+  status String @default("pending")
+  nextCheckAt DateTime
+  batchId String?
+  reason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([shop, orderId, lineItemId])
+  @@index([shop, status, nextCheckAt])
+}
+
+model NotifyDockFollowupBatch {
+  id String @id
+  shop String
+  orderId String
+  payload Json
+  status String @default("pending")
+  nextAttemptAt DateTime
+  reason String?
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([shop, status, nextAttemptAt])
+}
+
+model NotifyDockFollowupLease {
+  shop String @id
+  leaseUntil DateTime?
+  token String?
+  lastRunAt DateTime?
+  lastError String?
 }
 
 model NotifyDockBackorderJob {
@@ -77,6 +119,8 @@ model NotifyDockBackorderJob {
   attemptedAt    DateTime?
   acceptedAt     DateTime?
   nextAttemptAt  DateTime @default(now())
+  leaseToken     String?
+  leaseUntil     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -93,4 +137,9 @@ model NotifyDockBackorderScan {
   lastRunAt     DateTime?
   lastError     String?
   updatedAt     DateTime @updatedAt
+}
+
+model NotifyDockAutomationPolicy {
+  shop String @id
+  startAt DateTime
 }

@@ -1,0 +1,38 @@
+name: Daily backorder follow-ups
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+      timezone: America/Los_Angeles
+
+permissions: {}
+
+concurrency:
+  group: production-backorder-followups
+  cancel-in-progress: false
+
+jobs:
+  followups:
+    if: github.repository == 'DieselPowerProducts/NotifyDock'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check only recorded generic-email items
+        env:
+          FOLLOWUP_SECRET: ${{ secrets.NOTIFY_DOCK_FOLLOWUP_SECRET }}
+        run: |
+          node --input-type=module <<'NODE'
+          if (!process.env.FOLLOWUP_SECRET) throw new Error('Missing follow-up scheduler credential');
+          for (let page = 0; page < 200; page++) {
+            const response = await fetch('https://notify-dock.vercel.app/api/cron/backorder-followups', {
+              headers: {authorization: `Bearer ${process.env.FOLLOWUP_SECRET}`},
+              signal: AbortSignal.timeout(55000),
+            });
+            if (!response.ok) throw new Error(`Follow-up request failed: HTTP ${response.status}`);
+            const result = await response.json();
+            console.log(JSON.stringify(result));
+            if (result.status === 'outside_daily_window') throw new Error('Scheduler ran outside the 4 p.m. Pacific window');
+            if (!result.hasMore) process.exit(0);
+          }
+          throw new Error('Daily follow-up run exceeded its page budget');
+          NODE

@@ -1,4 +1,7 @@
-import {useEffect, useState} from "react";
+/** @jsxImportSource preact */
+import "@shopify/ui-extensions/preact";
+import {render} from "preact";
+import {useEffect, useState} from "preact/hooks";
 import {
   AdminBlock,
   Badge,
@@ -7,18 +10,17 @@ import {
   Button,
   InlineStack,
   Text,
-  reactExtension,
-  useApi,
-} from "@shopify/ui-extensions-react/admin";
+} from "../../shared/polaris";
 
-const TARGET = "admin.order-details.block.render";
 const ACTION_HANDLE = "notify-dock-action";
 const HISTORY_PREVIEW_LIMIT = 3;
 
-export default reactExtension(TARGET, () => <BlockLauncher />);
+export default function extension() {
+  render(<BlockLauncher />, document.body);
+}
 
 function BlockLauncher() {
-  const {data, intents, navigation, query} = useApi(TARGET);
+  const {data, intents, navigation, query} = shopify;
   const orderId =
     getOrderIdFromAdminUrl(intents?.launchUrl) || data?.selected?.[0]?.id || "";
   const [history, setHistory] = useState([]);
@@ -43,6 +45,7 @@ function BlockLauncher() {
         let customerEmail = "";
 
         try {
+          /** @type {{data?: Record<string, any>, errors?: {message: string}[]}} */
           const result = await query(
             `query NotifyDockOrderHistory($id: ID!) {
               order(id: $id) {
@@ -212,6 +215,7 @@ function HistoryTimelineItem({entry, isFirst, isLast}) {
   );
 }
 
+/** @param {{alignment?: "start" | "center" | "end"}} props */
 function HistoryTimelineConnector({alignment = "center"}) {
   return (
     <Box inlineSize={20} minInlineSize={20}>

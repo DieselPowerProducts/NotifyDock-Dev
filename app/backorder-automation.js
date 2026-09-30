@@ -14,12 +14,12 @@ export function getBackorderAutomationConfig(env = process.env) {
     .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
   const startValue = env.NOTIFY_DOCK_AUTOMATION_START_AT || "";
   const startAt = new Date(startValue);
-  if (mode !== "off" && (
-    !shops.length || shops.some((shop) => !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) ||
+  if ((mode !== "off" && (!shops.length || shops.some((shop) => !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)))) ||
+    ((mode !== "off" || startValue) && (
     !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(startValue) ||
     !isValidAvailabilityDate(startValue.slice(0, 10)) ||
     Number.isNaN(startAt.getTime())
-  )) {
+  ))) {
     throw new Error("Automation requires shop domains and an explicit START_AT timestamp with a timezone. Only orders created on or after START_AT are eligible.");
   }
   return {
@@ -32,6 +32,17 @@ export function getBackorderAutomationConfig(env = process.env) {
 export function hasBackorderTag(tags) {
   const values = Array.isArray(tags) ? tags : `${tags || ""}`.split(",");
   return values.some((tag) => tag.trim().toLowerCase() === "backorder");
+}
+
+export function isOrderAfterBackorderCutoff(order, startAt) {
+  const value = order?.createdAt;
+  // Require Shopify's explicit timezone; never interpret a missing date as epoch
+  // or a timezone-less date in the server's local timezone.
+  if (!Number.isFinite(startAt?.getTime()) || typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value) ||
+    !isValidAvailabilityDate(value.slice(0, 10))) return false;
+  const createdAt = new Date(value);
+  return Number.isFinite(createdAt.getTime()) && createdAt >= startAt;
 }
 
 export function isValidAvailabilityDate(value) {
@@ -67,13 +78,11 @@ export function normalizeAvailabilityDate(metafield, timeZone) {
   return formatStoreDate(timestamp, timeZone);
 }
 
-export function selectBackorderNotice({order, config, today, timeZone}) {
+export function selectBackorderNotice({order, config, today, timeZone, requireCustomerEmail = true}) {
   const skip = (reason) => ({status: "skipped", reason});
   const wait = (reason) => ({status: "waiting", reason});
   if (!order) return skip("Order no longer exists.");
-  const createdAt = new Date(order.createdAt);
-  if (Number.isNaN(createdAt.getTime())) return wait("Order creation time is missing.");
-  if (createdAt < config.startAt) return skip("Order predates automation activation.");
+  if (!isOrderAfterBackorderCutoff(order, config.startAt)) return skip("Order predates automation activation or its creation cutoff cannot be verified.");
   if (order.cancelledAt) return skip("Order was cancelled.");
   if (order.test && !config.allowTestOrders) return skip("Test orders are excluded.");
   if (!hasBackorderTag(order.tags)) return skip("Order does not have the Backorder tag.");
@@ -103,14 +112,15 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
     const date = builtToOrder ? "" : normalizeAvailabilityDate(variant.availabilityDate, timeZone);
     const messageField = variant.buildToOrderMessage;
     const message = builtToOrder ? `${messageField?.value || ""}`.trim() : "";
+    const hasDateValue = Boolean(`${variant.availabilityDate?.value || ""}`.trim());
     if (!sku) problems.push(`${item.title}: SKU is missing.`);
     if (builtToOrder) {
-      if (!message || (messageField?.type && !["single_line_text_field", "multi_line_text_field"].includes(messageField.type))) {
-        problems.push(`${sku || item.title}: custom.build_to_order_message is missing or invalid (expected plain text).`);
+      if (message && messageField?.type && !["single_line_text_field", "multi_line_text_field"].includes(messageField.type)) {
+        problems.push(`${sku || item.title}: custom.build_to_order_message is invalid (expected plain text).`);
       }
-    } else if (!isValidAvailabilityDate(date)) {
-      problems.push(`${sku || item.title}: custom.product_availability_date is missing or invalid (expected a date/time convertible to the store's calendar date).`);
-    } else if (date < today) {
+    } else if (hasDateValue && !isValidAvailabilityDate(date)) {
+      problems.push(`${sku || item.title}: custom.product_availability_date is invalid (expected a date/time convertible to the store's calendar date).`);
+    } else if (date && date < today) {
       problems.push(`${sku || item.title}: confirmed availability date is in the past.`);
     }
     products.push({
@@ -119,7 +129,9 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
       productVariantTitle: item.variantTitle || "",
       productImageUrl: variant.image?.url || item.image?.url || "",
       productImageAlt: variant.image?.altText || item.image?.altText || item.title,
-      delayState: builtToOrder ? "build_to_order_message" : "specific_date",
+      delayState: builtToOrder
+        ? (message ? "build_to_order_message" : "no_confirmed_date")
+        : (date ? "specific_date" : "no_confirmed_date"),
       delayMessage: message,
       delayDate: date,
       delayRangeStart: "",
@@ -129,7 +141,7 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
   if (problems.length) return wait(problems.join(" "));
   if (!products.length) return wait("No unfulfilled Red Head variants are marked Backorder or Build to Order.");
   const customerEmail = `${order.email || order.customer?.email || ""}`.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return wait("A valid customer email is missing.");
+  if (requireCustomerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return wait("A valid customer email is missing.");
   if (!order.name) return wait("Order number is missing.");
 
   // The same variant can appear on multiple lines (for example, with different properties).
@@ -139,7 +151,7 @@ export function selectBackorderNotice({order, config, today, timeZone}) {
   );
   return {
     status: "ready",
-    reason: "All selected items have availability dates or Built to Order messages.",
+    reason: "Selected items use their availability date, Built to Order message, or the generic unconfirmed-date notice.",
     payload: {
       customerEmail,
       emailType: BACKORDER_EMAIL_TYPE,
