@@ -3,7 +3,7 @@ import prisma from "./db.server";
 import {unauthenticated} from "./shopify.server";
 import {METRIC_NAMES} from "./klaviyo.server";
 import {sendAutomaticBackorderEvent} from "./backorder-automatic-send.server";
-import {requireBackorderPolicy} from "./backorder-policy.server";
+import {requireInitialBackorderPolicy} from "./backorder-policy.server";
 import {buildNotifyDockMessage} from "./notify-dock-email-template.server";
 import {
   BACKORDER_EMAIL_TYPE, BACKORDER_HISTORY_TYPES, getBackorderAutomationConfig, hasBackorderTag, isOrderAfterBackorderCutoff,
@@ -37,7 +37,7 @@ async function enqueueOrders(shop, orders, config) {
 export async function enqueueBackorderWebhook({shop, payload}) {
   let config = getBackorderAutomationConfig();
   if (config.mode === "off" || !config.shops.includes(shop)) return;
-  config = await requireBackorderPolicy(shop);
+  config = await requireInitialBackorderPolicy(shop);
   const ids = await enqueueOrders(shop, [{
     id: payload.admin_graphql_api_id || `gid://shopify/Order/${payload.id}`,
     name: payload.name,
@@ -81,7 +81,7 @@ const repository = {
 export async function processBackorderWebhook({shop, payload}) {
   const id = await enqueueBackorderWebhook({shop, payload});
   if (!id) return "ignored";
-  const config = {...await requireBackorderPolicy(shop), metricName: METRIC_NAMES[BACKORDER_EMAIL_TYPE]};
+  const config = {...await requireInitialBackorderPolicy(shop), metricName: METRIC_NAMES[BACKORDER_EMAIL_TYPE]};
   if (config.mode === "off") return "ignored";
   const token = randomUUID();
   const now = new Date();

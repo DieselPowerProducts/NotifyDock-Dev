@@ -8,8 +8,9 @@ test("order webhooks process only their eligible new order, lock concurrent work
   const savedEnv = {...process.env};
   const shop = "pilot.myshopify.com";
   Object.assign(process.env, {NOTIFY_DOCK_AUTOMATION_MODE: "live", NOTIFY_DOCK_AUTOMATION_SHOPS: shop,
-    NOTIFY_DOCK_AUTOMATION_START_AT: "2026-09-24T21:40:39Z", NOTIFY_DOCK_FOLLOWUP_ENABLED: "false"});
+    NOTIFY_DOCK_AUTOMATION_START_AT: "2026-09-24T21:40:39Z", NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT: "2026-09-24T21:40:39Z", NOTIFY_DOCK_FOLLOWUP_ENABLED: "false"});
   const cutoff = new Date(process.env.NOTIFY_DOCK_AUTOMATION_START_AT);
+  let initialCutoff = cutoff;
   const rows = [], sends = [], histories = [], loads = [];
   const orders = new Map();
   let failSend = false;
@@ -26,7 +27,7 @@ test("order webhooks process only their eligible new order, lock concurrent work
     return row[k] === v;
   });
   const db = {
-    notifyDockAutomationPolicy: {findUnique: async () => ({startAt: cutoff})},
+    notifyDockAutomationPolicy: {findUnique: async () => ({startAt: cutoff, initialStartAt: initialCutoff})},
     notifyDockBackorderJob: {
       createMany: async ({data}) => {for (const row of data) if (!rows.some((r) => r.id === row.id)) rows.push({...row, status: "queued"});},
       updateMany: async ({where, data}) => {const selected = rows.filter((r) => matches(r, where)); selected.forEach((r) => Object.assign(r, data)); return {count: selected.length};},
@@ -142,9 +143,28 @@ test("order webhooks process only their eligible new order, lock concurrent work
     assert.equal(reads, 2); assert.equal(sends.length, 6);
     assert.ok(rows.find((r) => r.orderId === changedBeforeSend.id).sendPayload,
       "A saved payload still cannot bypass the final cutoff check");
+
+    // The all-vendor cutoff applies before enqueueing, even to an older waiting job.
+    beforeLoad = () => {};
+    initialCutoff = new Date("2026-09-30T22:30:00Z");
+    process.env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT = initialCutoff.toISOString();
+    const oldOtherVendor = orderFor(40);
+    oldOtherVendor.lineItems[0].variant.product.vendor = "Industrial Injection";
+    orders.set(oldOtherVendor.id, oldOtherVendor);
+    assert.equal(await processEvent(eventFor(oldOtherVendor)), "ignored");
+    assert.equal(await processEvent(eventFor(changedBeforeSend)), "ignored");
+    assert.equal(sends.length, 6);
+    const newOtherVendor = orderFor(41);
+    newOtherVendor.createdAt = "2026-09-30T15:30:00-07:00";
+    newOtherVendor.lineItems[0].variant.product.vendor = "BD Diesel";
+    orders.set(newOtherVendor.id, newOtherVendor);
+    assert.equal(await processEvent(eventFor(newOtherVendor)), "accepted");
+    assert.equal(await processEvent(eventFor(newOtherVendor)), "complete");
+    assert.equal(sends.length, 7);
+
   } finally {
     delete globalThis.webhookTest;
-    for (const key of ["NOTIFY_DOCK_AUTOMATION_MODE", "NOTIFY_DOCK_AUTOMATION_SHOPS", "NOTIFY_DOCK_AUTOMATION_START_AT", "NOTIFY_DOCK_FOLLOWUP_ENABLED"]) {
+    for (const key of ["NOTIFY_DOCK_AUTOMATION_MODE", "NOTIFY_DOCK_AUTOMATION_SHOPS", "NOTIFY_DOCK_AUTOMATION_START_AT", "NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT", "NOTIFY_DOCK_FOLLOWUP_ENABLED"]) {
       if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key];
     }
   }

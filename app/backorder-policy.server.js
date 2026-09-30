@@ -13,7 +13,21 @@ export async function requireBackorderPolicy(shop, db = prisma, env = process.en
     policy.startAt.getTime() !== config.startAt.getTime()) {
     throw new Error("Backorder cutoff is missing or differs from the locked database policy. Processing stopped.");
   }
-  return {...config, startAt: policy.startAt};
+  return {...config, startAt: policy.startAt, initialStartAt: policy.initialStartAt};
+}
+
+// The expanded initial-email rollout has its own locked creation cutoff.
+// Keep the original cutoff for already-enrolled follow-ups and manual prefill.
+export async function requireInitialBackorderPolicy(shop, db = prisma, env = process.env) {
+  const config = await requireBackorderPolicy(shop, db, env);
+  const initial = getBackorderAutomationConfig({...env,
+    NOTIFY_DOCK_AUTOMATION_START_AT: env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT || "",
+  });
+  if (!Number.isFinite(initial.startAt.getTime()) || !Number.isFinite(config.initialStartAt?.getTime()) ||
+    initial.startAt.getTime() !== config.initialStartAt.getTime() || initial.startAt < config.startAt) {
+    throw new Error("Initial-email cutoff is missing, changed, or earlier than the locked original policy. Processing stopped.");
+  }
+  return {...config, startAt: config.initialStartAt};
 }
 
 export function followupEnabled(shop) {

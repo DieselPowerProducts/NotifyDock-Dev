@@ -1,6 +1,5 @@
 // Pure selection rules, shared by the worker and its offline tests.
 export const BACKORDER_EMAIL_TYPE = "dynamic_shipping_delay";
-export const BACKORDER_PILOT_VENDOR = "Red-Head Steering Gears Inc.";
 export const BACKORDER_HISTORY_TYPES = [
   "backorder_notice", "shipping_delay", BACKORDER_EMAIL_TYPE,
 ];
@@ -99,12 +98,6 @@ export function selectBackorderNotice({order, config, today, timeZone, requireCu
       problems.push(`${item.sku || item.title}: variant is unavailable.`);
       continue;
     }
-    if (!variant.product?.vendor) {
-      problems.push(`${item.sku || item.title}: vendor is unavailable.`);
-      continue;
-    }
-    // Deliberately an exact match: this rollout is limited to Red Head.
-    if (variant.product.vendor !== BACKORDER_PILOT_VENDOR) continue;
     const availability = `${variant.availability?.value || ""}`.trim().toLowerCase();
     if (!["backorder", "build to order", "built to order"].includes(availability)) continue;
     const builtToOrder = availability !== "backorder";
@@ -139,7 +132,7 @@ export function selectBackorderNotice({order, config, today, timeZone, requireCu
     });
   }
   if (problems.length) return wait(problems.join(" "));
-  if (!products.length) return wait("No unfulfilled Red Head variants are marked Backorder or Build to Order.");
+  if (!products.length) return wait("No unfulfilled variants are marked Backorder or Build to Order.");
   const customerEmail = `${order.email || order.customer?.email || ""}`.trim();
   if (requireCustomerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return wait("A valid customer email is missing.");
   if (!order.name) return wait("Order number is missing.");

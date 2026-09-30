@@ -6,7 +6,7 @@ import {sendAutomaticBackorderEvent} from "./backorder-automatic-send.server";
 import {requireBackorderPolicy, followupEnabled} from "./backorder-policy.server";
 import {buildDynamicShippingDelayDetailsHtml} from "./notify-dock-email-template.server";
 import {loadBackorderOrder} from "./backorder-automation-shopify.js";
-import {genericFollowupCandidates, nextFollowupCheck, resolveFollowupItem} from "./backorder-followup.js";
+import {genericFollowupCandidates, nextFollowupCheck, resolveFollowupItem, followupMatchesPayload} from "./backorder-followup.js";
 import {hasBackorderTag, isOrderAfterBackorderCutoff} from "./backorder-automation.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -111,15 +111,16 @@ export async function runBackorderFollowups(now = new Date()) {
           await prisma.notifyDockFollowupBatch.update({where: {id: batch.id}, data: {status: "held", reason: "Order predates automatic rollout; no follow-up."}});
           continue;
         }
-        const current = records.map((r) => resolveFollowupItem(r, loaded));
-        const expected = batch.payload.products;
-        if (!records.length || current.some((r) => r.status !== "ready") || current.length !== expected.length ||
-          current.some((r) => !expected.some((p) => p.sku === r.product.sku && p.delayDate === r.product.delayDate && p.delayMessage === r.product.delayMessage))) {
+        if (!followupMatchesPayload(records, loaded, batch.payload)) {
           await prisma.notifyDockFollowupBatch.update({where: {id: batch.id}, data: {status: "held", reason: "Items or ETA changed after queuing; review before resending."}});
+          await prisma.notifyDockFollowupItem.updateMany({where: {batchId: batch.id}, data: {
+            status: "skipped", reason: "Queued follow-up no longer eligible; review held batch.",
+          }});
           continue;
         }
         try {
-          const result = await sendAutomaticBackorderEvent({shop, orderId: batch.orderId, payload: batch.payload, kind: "followup"});
+          const result = await sendAutomaticBackorderEvent({shop, orderId: batch.orderId, payload: batch.payload, kind: "followup",
+            validateOrder: (fresh) => followupMatchesPayload(records, fresh, batch.payload)});
           const payload = batch.payload;
           await prisma.$transaction([
             prisma.notifyDockEmailHistory.upsert({where: {sourceEventId: batch.id}, update: {}, create: {

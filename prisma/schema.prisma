@@ -142,4 +142,5 @@ model NotifyDockBackorderScan {
 model NotifyDockAutomationPolicy {
   shop String @id
   startAt DateTime
+  initialStartAt DateTime?
 }

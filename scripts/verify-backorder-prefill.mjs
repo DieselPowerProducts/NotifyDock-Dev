@@ -2,14 +2,14 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {build} from "esbuild";
-import {BACKORDER_PILOT_VENDOR, selectBackorderNotice} from "../app/backorder-automation.js";
+import {selectBackorderNotice} from "../app/backorder-automation.js";
 
 const order = {
   id: "gid://shopify/Order/123", name: "#968218", createdAt: "2026-09-24T20:00:00Z",
   email: null, customer: null, tags: ["Backorder"],
   lineItems: ["Backorder", "Built to Order"].map((availability, index) => ({
     sku: `RH-${index}`, title: `Steering gear ${index}`, currentQuantity: 1, unfulfilledQuantity: 1,
-    variant: {sku: `RH-${index}`, product: {vendor: BACKORDER_PILOT_VENDOR},
+    variant: {sku: `RH-${index}`, product: {vendor: "Red-Head Steering Gears Inc."},
       availability: {value: availability}, availabilityDate: {type: "date", value: "2099-10-15"},
       buildToOrderMessage: {type: "single_line_text_field", value: "This product will ship in 2 Weeks from the manufacturer"},
     },
@@ -137,7 +137,7 @@ test("fixed cutoff suppresses old-order warnings while newer orders still report
       const loader = await buildPrefillLoader({...manualOrder, createdAt});
       const selected = await (await loader(request())).json();
       assert.equal(selected.status, expectedStatus);
-      assert.match(selected.reason, expectedStatus === "skipped" ? /predates/ : /No unfulfilled Red Head/);
+      assert.match(selected.reason, expectedStatus === "skipped" ? /predates/ : /No unfulfilled variants/);
       assert.equal(selected.payload, undefined);
     }
     const invalidOrder = structuredClone(order);

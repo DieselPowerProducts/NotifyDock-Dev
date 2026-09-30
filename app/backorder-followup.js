@@ -1,4 +1,4 @@
-import {BACKORDER_PILOT_VENDOR, normalizeAvailabilityDate} from "./backorder-automation.js";
+import {normalizeAvailabilityDate} from "./backorder-automation.js";
 
 export function isFollowupRunHour(now = new Date()) {
   return Number.isFinite(now.getTime()) && new Intl.DateTimeFormat("en-US", {
@@ -30,7 +30,7 @@ export function genericFollowupCandidates({order, products, emailType, globalShi
     const variant = item.variant;
     const availability = `${variant?.availability?.value || ""}`.trim().toLowerCase();
     if (!genericSkus.has(item.sku) || !item.id || !variant?.id || item.unfulfilledQuantity <= 0 ||
-      item.currentQuantity <= 0 || variant.product?.vendor !== BACKORDER_PILOT_VENDOR ||
+      item.currentQuantity <= 0 ||
       !["backorder", "build to order", "built to order"].includes(availability)) return [];
     return [{lineItemId: item.id, variantId: variant.id, sku: item.sku,
       kind: availability === "backorder" ? "backorder" : "built_to_order"}];
@@ -39,8 +39,7 @@ export function genericFollowupCandidates({order, products, emailType, globalShi
 
 export function resolveFollowupItem(record, {order, today, timeZone}) {
   const item = order?.lineItems.find((line) => line.id === record.lineItemId && line.variant?.id === record.variantId);
-  if (!order || order.cancelledAt || !item || item.unfulfilledQuantity <= 0 || item.currentQuantity <= 0 ||
-    item.variant.product?.vendor !== BACKORDER_PILOT_VENDOR) return {status: "skipped", reason: "Item cancelled, removed, fulfilled, or no longer eligible."};
+  if (!order || order.cancelledAt || !item || item.unfulfilledQuantity <= 0 || item.currentQuantity <= 0) return {status: "skipped", reason: "Item cancelled, removed, fulfilled, or no longer eligible."};
   const availability = `${item.variant.availability?.value || ""}`.trim().toLowerCase();
   if (!(record.kind === "backorder" ? availability === "backorder" : ["build to order", "built to order"].includes(availability))) {
     return {status: "skipped", reason: "Availability type changed; review manually."};
@@ -62,4 +61,12 @@ export function resolveFollowupItem(record, {order, today, timeZone}) {
     productImageAlt: item.variant.image?.altText || item.image?.altText || item.title,
     delayState: date ? "specific_date" : "build_to_order_message", delayDate: date, delayMessage: message,
     delayRangeStart: "", delayRangeEnd: ""}};
+}
+
+export function followupMatchesPayload(records, loaded, payload) {
+  const current = records.map((record) => resolveFollowupItem(record, loaded));
+  return records.length > 0 && current.length === payload.products.length &&
+    current.every((item) => item.status === "ready" && payload.products.some((product) =>
+      product.sku === item.product.sku && product.delayDate === item.product.delayDate &&
+      product.delayMessage === item.product.delayMessage));
 }

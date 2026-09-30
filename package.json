@@ -19,7 +19,7 @@
     "vite": "vite",
     "typecheck:extensions": "tsc --project extensions/backorder-email/tsconfig.json && tsc --project extensions/notify-dock-action/tsconfig.json",
     "test:composer": "node scripts/verify-composer-dates.mjs",
-    "test:regression": "node --test scripts/verify-backorder-followups.mjs scripts/verify-backorder-policy.mjs scripts/verify-backorder-prefill.mjs scripts/verify-backorder-webhooks.mjs scripts/verify-followup-schedule.mjs scripts/verify-initial-rollout.mjs"
+    "test:regression": "node --test scripts/verify-all-vendor-backorders.mjs scripts/verify-backorder-followups.mjs scripts/verify-backorder-policy.mjs scripts/verify-backorder-prefill.mjs scripts/verify-backorder-webhooks.mjs scripts/verify-followup-schedule.mjs scripts/verify-initial-rollout.mjs"
   },
   "type": "module",
   "engines": {

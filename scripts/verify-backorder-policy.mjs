@@ -28,9 +28,9 @@ after(() => { delete globalThis.cutoffGate; });
 async function isolated(run) {
   const saved = {...process.env};
   const values = {NOTIFY_DOCK_AUTOMATION_MODE: "off", NOTIFY_DOCK_AUTOMATION_SHOPS: shop,
-    NOTIFY_DOCK_AUTOMATION_START_AT: cutoff, NOTIFY_DOCK_FOLLOWUP_ENABLED: "true", NOTIFY_DOCK_FOLLOWUP_SHOPS: shop};
+    NOTIFY_DOCK_AUTOMATION_START_AT: cutoff, NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT: cutoff, NOTIFY_DOCK_FOLLOWUP_ENABLED: "true", NOTIFY_DOCK_FOLLOWUP_SHOPS: shop};
   Object.assign(process.env, values);
-  Object.assign(state, {sends: [], policy: {startAt: new Date(cutoff)},
+  Object.assign(state, {sends: [], policy: {startAt: new Date(cutoff), initialStartAt: new Date(cutoff)},
     order: {id: orderId, createdAt: "2026-09-24T21:53:00Z"}, databaseFailure: false, shopifyFailure: false});
   try { await run(); }
   finally { for (const key of Object.keys(values)) {
@@ -102,3 +102,38 @@ test("creation cutoff remains the first eligibility decision and invalid cutoff 
   assert.equal(selectBackorderNotice({order: old, config: {startAt: new Date(cutoff)}}).status, "skipped");
   assert.equal(isOrderAfterBackorderCutoff({createdAt: cutoff}, new Date("invalid")), false);
 });
+
+test("3:30pm rollout gates new initial emails while preserving previously enrolled follow-ups", async () => isolated(async () => {
+  const rollout = "2026-09-30T22:30:00Z";
+  process.env.NOTIFY_DOCK_AUTOMATION_MODE = "live";
+  process.env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT = rollout;
+  state.policy.initialStartAt = new Date(rollout);
+  for (const createdAt of ["2026-09-25T12:00:00Z", "2026-09-30T22:29:59.999Z", "2026-09-30T15:29:59.999-07:00"]) {
+    state.order.createdAt = createdAt;
+    await assert.rejects(send("initial"), /cutoff/);
+    await send("followup");
+  }
+  for (const createdAt of [rollout, "2026-09-30T15:30:00-07:00", "2026-09-30T22:30:00.001Z"]) {
+    state.order.createdAt = createdAt;
+    await send("initial");
+  }
+  assert.equal(state.sends.length, 6);
+}));
+
+test("new initial policy fails closed if missing or changed without disabling existing follow-ups", async () => isolated(async () => {
+  process.env.NOTIFY_DOCK_AUTOMATION_MODE = "live";
+  state.order.createdAt = "2026-10-01T00:00:00Z";
+  state.policy.initialStartAt = new Date("2026-09-30T22:30:00Z");
+  for (const value of ["", "invalid", "2026-09-30T22:29:00Z", "2026-09-30T22:31:00Z"]) {
+    process.env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT = value;
+    await assert.rejects(send("initial"));
+    await send("followup");
+  }
+  process.env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT = "2026-09-30T22:30:00Z";
+  state.policy.initialStartAt = null;
+  await assert.rejects(send("initial"));
+  state.policy.initialStartAt = new Date("2026-09-01T00:00:00Z");
+  process.env.NOTIFY_DOCK_AUTOMATION_INITIAL_START_AT = "2026-09-01T00:00:00Z";
+  await assert.rejects(send("initial"));
+  assert.equal(state.sends.length, 4);
+}));

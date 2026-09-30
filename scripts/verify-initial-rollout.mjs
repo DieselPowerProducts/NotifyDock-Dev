@@ -44,10 +44,10 @@ test("mixed initial notice enrolls only its generic product and freezes stable r
   assert.deepEqual(captured.followupCandidates.map((p) => p.sku), ["GENERIC"]);
   assert.equal(captured.requestEventUniqueId, "stable-id");
 });
-test("tag, vendor, and previously sent notice gates remain enforced", async () => {
+test("all vendors are eligible while tags and previous notice protection remain enforced", async () => {
   assert.equal(selectBackorderNotice({...loaded, config, order: {...order, tags: ["Backordered"]}}).status, "skipped");
   const other = structuredClone(order); other.lineItems.forEach((p) => {p.variant.product.vendor = "Other";});
-  assert.equal(selectBackorderNotice({...loaded, config, order: other}).status, "waiting");
+  assert.equal(selectBackorderNotice({...loaded, config, order: other}).status, "ready");
   const result = await processBackorderJob({job: {id: "manual-already-sent"}, config,
     repository: {update: async () => {}, hasPreviousNotice: async () => true}, loadOrder: async () => loaded,
     send: async () => assert.fail("Already notified orders must not send"), buildMessage: () => "test"});
